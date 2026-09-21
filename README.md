@@ -18,20 +18,30 @@ everything. This one talks to the SMC directly through IOKit, so fans and
 thermistors are readable as a normal user. The only thing that needs
 privileges is power draw in watts, and the dashboard works fine without it.
 
-### What it shows
+### The interface
 
-| Panel | Detail | Needs sudo |
-|---|---|---|
-| **CPU** | Per-core heat grid, split into efficiency and performance clusters | no |
-| **GPU** | Device / renderer / tiler utilization, VRAM in use | no |
-| **Fans** | Real RPM per fan, icons spin proportionally to actual speed | no |
-| **Thermal** | Up to 8 sensor families (P-cores, E-cores, GPU, VRM, chassis, battery, SSD, intake) | no |
-| **Memory** | App / wired / compressed / cached breakdown, swap, pressure | no |
-| **Battery** | Charge, flow in watts, cycles, health, cell temperature | no |
-| **Throughput** | Network and disk, bytes per second | no |
-| **Ports** | Listening TCP sockets, flagged **local** vs **exposed** | partial |
-| **Processes** | Top consumers by CPU and by memory | no |
-| **Power** | Watts for CPU, GPU and Neural Engine, plus per-cluster clock | **yes** |
+Eleven cards, one per aspect of the machine. Each shows a **summary** — the
+current value, a line of context and a 60-second sparkline — so the whole
+state of the machine reads at a glance without clicking anything.
+
+Click a card and it **expands in place**: it takes the full row width without
+moving from its position, and its detail unfolds right under its own summary.
+Click again to collapse. Several can stay open at once, and which ones you
+left open is remembered between sessions.
+
+| Card | Summary | Expanded detail | Needs sudo |
+|---|---|---|---|
+| **CPU** | Load, core count | Per-core heat grid split into efficiency and performance clusters, gauge, processes, threads, clock | no |
+| **GPU** | Utilization, VRAM | Gauge, renderer, tiler, clock, residency | no |
+| **RAM** | Percentage, GB used | App / wired / compressed / cached breakdown, swap, pressure, 60 s history | no |
+| **Thermal** | Hottest reading and which family | Up to 8 sensor families (P-cores, E-cores, GPU, VRM, chassis, battery, SSD, intake) | no |
+| **Fans** | RPM, state | Per-fan RPM with icons spinning proportionally to real speed, plus range | no |
+| **Power** | Total watts | CPU, GPU and Neural Engine separately, per-cluster clock | **yes** |
+| **Battery** | Charge, state | Flow in watts, cycles, health, cell temperature | no |
+| **Network** | Throughput | In / out per second with its own chart | no |
+| **Disk** | Throughput | Read / write per second with its own chart | no |
+| **Processes** | Total, top consumer | Ranked by CPU and by memory, side by side | no |
+| **Ports** | Count, how many exposed | Listening TCP sockets flagged **local** vs **exposed** | partial |
 
 Everything is auto-detected at runtime: core counts, cluster topology, RAM,
 GPU cores, sensor layout. The same code adapts to any Mac.
@@ -63,10 +73,15 @@ The browser opens at `http://localhost:8765`.
 
 | Key | Action |
 |---|---|
+| `1`–`9` | Open or close that card (the first nine; Processes and Ports are click-only) |
+| `E` | Open or close every card at once |
 | `T` | Toggle light / dark theme |
 | `P` | Pause / resume refresh |
 | `R` | Restart the server |
 | `D` | Stop and quit |
+
+The theme follows your system preference on first run. Once you pick one, your
+choice wins and is remembered.
 
 ### Privacy
 
@@ -81,8 +96,8 @@ is written to disk except a PID file that is deleted on exit.
 - **Fans and temperatures** — the `AppleSMC` IOKit service, opened read-only.
   `powermetrics` dropped its `smc` sampler on Apple Silicon, so this is the
   only route to fan RPM. The SMC exposes thousands of keys; the code
-  enumerates them once at startup and groups the live thermistors into
-  families.
+  enumerates them once at startup, in a background thread so the server binds
+  immediately, and groups the live thermistors into families.
 - **GPU** — `IOAccelerator` performance statistics from the IOKit registry.
   `powermetrics` reports the same numbers but demands privileges.
 - **Memory** — `vm_stat`, using Activity Monitor's definition:
@@ -93,6 +108,8 @@ is written to disk except a PID file that is deleted on exit.
   complement reversal or you get absurd wattages.
 - **Power** — `powermetrics` kept streaming in a background thread. Spawning
   it per sample would cost about a second each time.
+- **Network and disk** — cumulative counters from `netstat -ib` and the
+  `IOBlockStorageDriver` registry, differentiated into bytes per second.
 
 ### Notes and gotchas
 
@@ -100,6 +117,9 @@ is written to disk except a PID file that is deleted on exit.
   chassis and only spin the fans under sustained load.
 - **P-core thermistors read 0 while that cluster is powered down.** The panel
   shows *reposo* rather than a misleading zero.
+- **Voltage regulators are usually the hottest thing in the machine.** They
+  dissipate the loss of converting voltages; it does not mean the processor
+  is struggling.
 - **Listening ports are incomplete without sudo.** `lsof` only reveals your
   own processes otherwise; system daemons stay hidden.
 - Change the port by editing `PUERTO` in `monitor.py`.
@@ -134,20 +154,30 @@ kernel o `sudo` para todo. Este habla directo con el SMC a través de IOKit, as�
 que los ventiladores y termistores se leen como usuario normal. Lo único que
 necesita privilegios es el consumo en vatios, y el panel funciona igual sin eso.
 
-### Qué muestra
+### La interfaz
 
-| Panel | Detalle | Requiere sudo |
-|---|---|---|
-| **CPU** | Rejilla de calor por núcleo, separada en clusters de eficiencia y rendimiento | no |
-| **GPU** | Utilización de dispositivo, renderizador y teselador; VRAM en uso | no |
-| **Ventiladores** | RPM reales, los iconos giran a velocidad proporcional | no |
-| **Térmico** | Hasta 8 familias de sensores (núcleos P y E, GPU, reguladores, chasis, batería, SSD, entrada de aire) | no |
-| **Memoria** | Desglose apps / anclada / comprimida / caché, swap y presión | no |
-| **Batería** | Carga, flujo en vatios, ciclos, salud, temperatura de celdas | no |
-| **Caudal** | Red y disco, bytes por segundo | no |
-| **Puertos** | Sockets TCP en escucha, marcados **local** o **expuesto** | parcial |
-| **Procesos** | Mayores consumidores por CPU y por memoria | no |
-| **Consumo** | Vatios de CPU, GPU y Neural Engine, más frecuencia por cluster | **sí** |
+Once tarjetas, una por cada aspecto del equipo. Cada una muestra un **resumen**
+—el valor actual, una línea de contexto y un minigráfico de 60 segundos— de
+modo que el estado completo de la máquina se lee de un vistazo sin pulsar nada.
+
+Al pulsar una tarjeta, esta **se agranda en su sitio**: ocupa el ancho completo
+de la fila sin moverse de su posición, y su detalle se despliega justo debajo
+de su propio resumen. Pulsándola otra vez se cierra. Pueden quedar varias
+abiertas a la vez, y cuáles dejaste abiertas se recuerda entre sesiones.
+
+| Tarjeta | Resumen | Detalle desplegado | Requiere sudo |
+|---|---|---|---|
+| **CPU** | Carga, número de núcleos | Rejilla de calor por núcleo separada en clusters de eficiencia y rendimiento, medidor, procesos, hilos, frecuencia | no |
+| **GPU** | Utilización, VRAM | Medidor, renderizador, teselador, frecuencia, residencia | no |
+| **RAM** | Porcentaje, GB usados | Desglose apps / anclada / comprimida / caché, swap, presión, histórico de 60 s | no |
+| **Térmico** | Lectura más alta y de qué familia | Hasta 8 familias de sensores (núcleos P y E, GPU, reguladores, chasis, batería, SSD, entrada de aire) | no |
+| **Vent** | RPM, estado | RPM por ventilador, con iconos que giran a velocidad proporcional a la real, y su rango | no |
+| **Consumo** | Vatios totales | CPU, GPU y Neural Engine por separado, frecuencia por cluster | **sí** |
+| **Batería** | Carga, estado | Flujo en vatios, ciclos, salud, temperatura de celdas | no |
+| **Red** | Caudal | Entrada y salida por segundo, con gráfico propio | no |
+| **Disco** | Caudal | Lectura y escritura por segundo, con gráfico propio | no |
+| **Procesos** | Total y quién lidera | Ordenados por CPU y por memoria, lado a lado | no |
+| **Puertos** | Cantidad y cuántos expuestos | Sockets TCP en escucha, marcados **local** o **expuesto** | parcial |
 
 Todo se detecta en ejecución: número de núcleos, topología de clusters, RAM,
 núcleos de GPU y disposición de sensores. El mismo código se adapta a
@@ -181,10 +211,15 @@ El navegador se abre en `http://localhost:8765`.
 
 | Tecla | Acción |
 |---|---|
-| `T` | Alternar tema claro / oscuro |
-| `P` | Pausar / reanudar el refresco |
-| `R` | Reiniciar el servidor |
-| `D` | Detener y salir |
+| `1`–`9` | Abre o cierra esa tarjeta (las primeras nueve; Procesos y Puertos solo con clic) |
+| `E` | Abre o cierra todas a la vez |
+| `T` | Alterna tema claro / oscuro |
+| `P` | Pausa / reanuda el refresco |
+| `R` | Reinicia el servidor |
+| `D` | Detiene y sale |
+
+El tema sigue la preferencia del sistema la primera vez. En cuanto eliges uno,
+tu elección manda y se recuerda.
 
 ### Privacidad
 
@@ -199,7 +234,8 @@ escribe a disco es un archivo de PID que se borra al salir.
 - **Ventiladores y temperaturas** — el servicio IOKit `AppleSMC`, abierto solo
   para lectura. `powermetrics` eliminó su sampler `smc` en Apple Silicon, así
   que esta es la única vía a las RPM. El SMC expone miles de claves; el código
-  las enumera una vez al arrancar y agrupa los termistores activos en familias.
+  las enumera una vez al arrancar, en un hilo aparte para que el servidor abra
+  el socket de inmediato, y agrupa los termistores activos en familias.
 - **GPU** — estadísticas de `IOAccelerator` del registro de IOKit.
   `powermetrics` da las mismas cifras pero exigiendo privilegios.
 - **Memoria** — `vm_stat`, con el criterio del Monitor de Actividad:
@@ -210,6 +246,8 @@ escribe a disco es un archivo de PID que se borra al salir.
   el complemento a dos o salen consumos absurdos.
 - **Consumo** — `powermetrics` en streaming desde un hilo aparte. Lanzarlo por
   muestra costaría cerca de un segundo cada vez.
+- **Red y disco** — contadores acumulados de `netstat -ib` y del registro
+  `IOBlockStorageDriver`, derivados a bytes por segundo.
 
 ### Detalles que conviene saber
 
@@ -217,6 +255,9 @@ escribe a disco es un archivo de PID que se borra al salir.
   aluminio y solo mueven los ventiladores bajo carga sostenida.
 - **Los termistores de los núcleos P leen 0 mientras el cluster está apagado.**
   El panel muestra *reposo* en vez de un cero engañoso.
+- **Los reguladores de voltaje suelen ser lo más caliente del equipo.**
+  Disipan la pérdida de convertir voltajes; no significa que el procesador
+  esté sufriendo.
 - **Los puertos en escucha quedan incompletos sin sudo.** `lsof` solo revela
   tus propios procesos; los demonios del sistema no aparecen.
 - El puerto se cambia editando `PUERTO` en `monitor.py`.
