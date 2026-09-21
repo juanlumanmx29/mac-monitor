@@ -91,16 +91,12 @@
     position:relative;overflow:hidden;
     transition:border-color .18s,background .18s,box-shadow .2s}
   .vital:hover{border-color:rgba(var(--rgb-cyan),.45);background:var(--panel2)}
-  /* Expandida ocupa la fila completa, en su misma posición del flujo. */
-  .vital.exp{grid-column:1 / -1;border-color:rgba(var(--rgb-cyan),.6);
-    background:var(--panel2);box-shadow:var(--sombra)}
-
-  .vtop{padding:9px 11px 7px;cursor:pointer;user-select:none;position:relative}
-  .vtop::after{content:"";position:absolute;right:10px;top:11px;width:6px;height:6px;
-    border-right:1.5px solid var(--dim2);border-bottom:1.5px solid var(--dim2);
-    transform:rotate(45deg);transition:transform .25s,border-color .18s}
-  .vital:hover .vtop::after{border-color:var(--cyan)}
-  .vital.exp .vtop::after{transform:rotate(-135deg);border-color:var(--cyan)}
+  .vital{padding:9px 11px 7px;cursor:pointer;user-select:none}
+  /* Seleccionada: su detalle está abierto abajo. */
+  .vital.exp{border-color:rgba(var(--rgb-cyan),.65);background:var(--panel2);
+    box-shadow:0 0 0 1px rgba(var(--rgb-cyan),.18),0 0 16px rgba(var(--rgb-cyan),.09)}
+  .vital.exp::after{content:"";position:absolute;left:0;right:0;bottom:0;height:2px;
+    background:var(--cyan)}
 
   .vital .vn{font-size:9px;letter-spacing:1.2px;text-transform:uppercase;
     color:var(--dim);display:block}
@@ -110,17 +106,31 @@
   .vital .vv small{font-size:10px;color:var(--dim);font-weight:400;margin-left:2px}
   .vital .vs{font-family:var(--mono);font-size:9.5px;color:var(--dim2);
     display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .vital .vtop canvas{height:18px;margin-top:3px}
+  .vital canvas{height:18px;margin-top:3px}
 
-  /* ---------- detalle desplegado ---------- */
-  .vdet{display:none;padding:2px 13px 14px;border-top:1px solid var(--line);
-    margin-top:4px}
-  .vital.exp .vdet{display:grid;gap:18px;padding-top:13px;
-    grid-template-columns:repeat(auto-fit,minmax(300px,1fr));
-    animation:despliega .24s ease}
-  @keyframes despliega{from{opacity:0;transform:translateY(-7px)}to{opacity:1;transform:none}}
-  .dcol{min-width:0}
-  .dcol-full{grid-column:1 / -1}
+  /* ---------- rejilla de detalles ---------- */
+  /* Tres por fila. Al cerrar uno, los demás se recolocan solos porque los
+     ocultos salen del flujo del grid. */
+  .detalles{display:grid;gap:10px;margin-top:11px;align-items:start;
+    grid-template-columns:repeat(3,1fr)}
+  @media(max-width:1150px){.detalles{grid-template-columns:repeat(2,1fr)}}
+  @media(max-width:720px){.detalles{grid-template-columns:1fr}}
+
+  .det{display:none;background:var(--panel);border-radius:8px;
+    border:1px solid rgba(var(--rgb-cyan),.35);overflow:hidden;
+    box-shadow:0 0 0 1px rgba(var(--rgb-cyan),.06)}
+  .det.on{display:block;animation:aparece .24s ease}
+  @keyframes aparece{from{opacity:0;transform:translateY(-8px) scale(.98)}
+                     to{opacity:1;transform:none}}
+
+  .dhead{display:flex;align-items:center;gap:7px;padding:9px 12px;
+    color:var(--cyan);border-bottom:1px solid var(--line);
+    background:rgba(var(--rgb-cyan),.05)}
+  .dhead .lbl{flex:1;color:var(--cyan)}
+  .cerrar{background:none;border:none;color:var(--dim);font-size:17px;
+    line-height:1;padding:0 3px;cursor:pointer;transition:color .15s}
+  .cerrar:hover{color:var(--red)}
+  .dbody{padding:12px 13px 13px}
 
 
   /* ---------- rejilla (heredada) ---------- */
@@ -309,23 +319,98 @@
   </div>
 </header>
 
-<!-- Cada tarjeta resume un aspecto y se agranda en su sitio al pulsarla -->
+<!-- Selectores: pulsa uno y su detalle aparece en la rejilla de abajo -->
 <div class="vitales" id="vitales">
+  <div class="vital" data-m="cpu" onclick="alternar('cpu')">
+    <span class="vn">CPU</span>
+    <span class="vv" id="vv_cpu">—<small>%</small></span>
+    <span class="vs" id="vs_cpu">—</span>
+    <canvas id="vc_cpu" width="240" height="18"></canvas>
+  </div>
 
-  <div class="vital" data-m="cpu">
-    <div class="vtop" onclick="alternar('cpu')">
-      <span class="vn">CPU</span>
-      <span class="vv" id="vv_cpu">—<small>%</small></span>
-      <span class="vs" id="vs_cpu">—</span>
-      <canvas id="vc_cpu" width="240" height="18"></canvas>
+  <div class="vital" data-m="gpu" onclick="alternar('gpu')">
+    <span class="vn">GPU</span>
+    <span class="vv" id="vv_gpu">—<small>%</small></span>
+    <span class="vs" id="vs_gpu">—</span>
+    <canvas id="vc_gpu" width="240" height="18"></canvas>
+  </div>
+
+  <div class="vital" data-m="ram" onclick="alternar('ram')">
+    <span class="vn">RAM</span>
+    <span class="vv" id="vv_ram">—<small>%</small></span>
+    <span class="vs" id="vs_ram">—</span>
+    <canvas id="vc_ram" width="240" height="18"></canvas>
+  </div>
+
+  <div class="vital" data-m="termico" onclick="alternar('termico')">
+    <span class="vn">Térmico</span>
+    <span class="vv" id="vv_tmp">—<small>°</small></span>
+    <span class="vs" id="vs_tmp">—</span>
+    <canvas id="vc_tmp" width="240" height="18"></canvas>
+  </div>
+
+  <div class="vital" data-m="vent" onclick="alternar('vent')">
+    <span class="vn">Vent</span>
+    <span class="vv" id="vv_fan">—</span>
+    <span class="vs" id="vs_fan">—</span>
+    <canvas id="vc_fan" width="240" height="18"></canvas>
+  </div>
+
+  <div class="vital" data-m="consumo" onclick="alternar('consumo')">
+    <span class="vn">Consumo</span>
+    <span class="vv" id="vv_pwr">—<small>W</small></span>
+    <span class="vs" id="vs_pwr">—</span>
+    <canvas id="vc_pwr" width="240" height="18"></canvas>
+  </div>
+
+  <div class="vital" data-m="bateria" onclick="alternar('bateria')">
+    <span class="vn">Batería</span>
+    <span class="vv" id="vv_bat">—<small>%</small></span>
+    <span class="vs" id="vs_bat">—</span>
+    <canvas id="vc_bat" width="240" height="18"></canvas>
+  </div>
+
+  <div class="vital" data-m="red" onclick="alternar('red')">
+    <span class="vn">Red</span>
+    <span class="vv" id="vv_net">—</span>
+    <span class="vs" id="vs_net">—</span>
+    <canvas id="vc_net" width="240" height="18"></canvas>
+  </div>
+
+  <div class="vital" data-m="disco" onclick="alternar('disco')">
+    <span class="vn">Disco</span>
+    <span class="vv" id="vv_dsk">—</span>
+    <span class="vs" id="vs_dsk">—</span>
+    <canvas id="vc_dsk" width="240" height="18"></canvas>
+  </div>
+
+  <div class="vital" data-m="procesos" onclick="alternar('procesos')">
+    <span class="vn">Procesos</span>
+    <span class="vv" id="vv_prc">—</span>
+    <span class="vs" id="vs_prc">—</span>
+    <canvas id="vc_prc" width="240" height="18"></canvas>
+  </div>
+
+  <div class="vital" data-m="puertos" onclick="alternar('puertos')">
+    <span class="vn">Puertos</span>
+    <span class="vv" id="vv_prt">—</span>
+    <span class="vs" id="vs_prt">—</span>
+    <canvas id="vc_prt" width="240" height="18"></canvas>
+  </div>
+</div>
+
+<!-- Detalles abiertos: 3 por fila, se reacomodan al abrir y cerrar -->
+<div class="detalles" id="detalles">
+  <section class="det" data-m="cpu">
+    <div class="dhead">
+      <svg class="ico"><use href="#i-chip"/></svg>
+      <span class="lbl">CPU</span>
+      <button class="cerrar" onclick="alternar('cpu')" title="Cerrar">×</button>
     </div>
-    <div class="vdet">
-      <div class="dcol">
+    <div class="dbody">
         <div class="lbl" id="tagCores" style="margin-bottom:8px">—</div>
         <div class="cores" id="cores"></div>
-      </div>
-      <div class="dcol">
-        <div class="gauge" id="tipGauge">
+        <div class="gauge" id="tipGauge" style="margin-top:13px">
           <svg viewBox="0 0 100 100"><circle class="pista" cx="50" cy="50" r="41"/>
             <circle class="val" id="gCpu" cx="50" cy="50" r="41" stroke="var(--cyan)" stroke-dasharray="0 999"/></svg>
           <div>
@@ -335,25 +420,22 @@
             <div class="lbl" style="margin-top:3px">carga <b class="n" id="carga">—</b></div>
           </div>
         </div>
-        <canvas id="sparkCpu" width="400" height="34" style="margin-top:12px;height:34px"></canvas>
-        <div class="rows" style="margin-top:9px">
-          <div data-tip="Procesos en ejecución|Programas vivos, incluidos los demonios del sistema que nunca ves. Un macOS en reposo ronda los 400-600."><span>Procesos</span><b id="sysProc">—</b></div>
+        <canvas id="sparkCpu" width="400" height="30" style="margin-top:11px;height:30px"></canvas>
+        <div class="rows" style="margin-top:8px">
+          <div data-tip="Procesos en ejecución|Programas vivos, incluidos los demonios del sistema que nunca ves."><span>Procesos</span><b id="sysProc">—</b></div>
           <div id="tipHilos" data-tip="Hilos|Unidades de ejecución dentro de los procesos."><span>Hilos</span><b id="sysHilos">—</b></div>
-          <div data-tip="Frecuencia por cluster|Requiere powermetrics (sudo)."><span>Frecuencia E / P</span><b id="freqCpu">—</b></div>
+          <div data-tip="Frecuencia por cluster|Requiere powermetrics (sudo)."><span>Frec. E / P</span><b id="freqCpu">—</b></div>
         </div>
-      </div>
     </div>
-  </div>
+  </section>
 
-  <div class="vital" data-m="gpu">
-    <div class="vtop" onclick="alternar('gpu')">
-      <span class="vn">GPU</span>
-      <span class="vv" id="vv_gpu">—<small>%</small></span>
-      <span class="vs" id="vs_gpu">—</span>
-      <canvas id="vc_gpu" width="240" height="18"></canvas>
+  <section class="det" data-m="gpu">
+    <div class="dhead">
+      <svg class="ico"><use href="#i-gpu"/></svg>
+      <span class="lbl">GPU</span>
+      <button class="cerrar" onclick="alternar('gpu')" title="Cerrar">×</button>
     </div>
-    <div class="vdet">
-      <div class="dcol">
+    <div class="dbody">
         <div class="gauge">
           <svg viewBox="0 0 100 100"><circle class="pista" cx="50" cy="50" r="41"/>
             <circle class="val" id="gGpu" cx="50" cy="50" r="41" stroke="var(--violet)" stroke-dasharray="0 999"/></svg>
@@ -364,39 +446,32 @@
           </div>
         </div>
         <canvas id="sparkGpu" width="400" height="30" style="margin-top:11px;height:30px"></canvas>
-      </div>
-      <div class="dcol">
-        <div class="rows">
+        <div class="rows" style="margin-top:8px">
           <div data-tip="Renderizador|La etapa que dibuja los píxeles: sombreado, texturas, efectos."><span>Renderizador</span><b id="gpuRender">—</b></div>
           <div data-tip="Teselador|Apple Silicon usa renderizado por tiles.|Ahorra ancho de banda de memoria, clave cuando CPU y GPU comparten RAM."><span>Teselador</span><b id="gpuTiler">—</b></div>
           <div data-tip="Frecuencia de reloj de la GPU|Requiere powermetrics (sudo)."><span>Frecuencia</span><b id="gpuFreq">—</b></div>
           <div data-tip="Residencia de GPU|Porcentaje del tiempo ejecutando trabajo."><span>GPU activa</span><b id="gpuAct">—</b></div>
         </div>
-      </div>
     </div>
-  </div>
+  </section>
 
-  <div class="vital" data-m="ram">
-    <div class="vtop" onclick="alternar('ram')">
-      <span class="vn">RAM</span>
-      <span class="vv" id="vv_ram">—<small>%</small></span>
-      <span class="vs" id="vs_ram">—</span>
-      <canvas id="vc_ram" width="240" height="18"></canvas>
+  <section class="det" data-m="ram">
+    <div class="dhead">
+      <svg class="ico"><use href="#i-mem"/></svg>
+      <span class="lbl">RAM</span>
+      <button class="cerrar" onclick="alternar('ram')" title="Cerrar">×</button>
     </div>
-    <div class="vdet">
-      <div class="dcol">
+    <div class="dbody">
         <div class="big" id="memU">—</div>
         <div class="bar" id="barMem"></div>
         <div class="leg">
-          <span data-tip="Memoria de aplicaciones|Lo que piden tus programas para funcionar.|Es la porción que de verdad puedes liberar cerrando cosas."><i class="chip" style="background:var(--cyan)"></i>Apps <b class="n" id="mApp">—</b></span>
+          <span data-tip="Memoria de aplicaciones|Lo que piden tus programas para funcionar.|Es la porción que puedes liberar cerrando cosas."><i class="chip" style="background:var(--cyan)"></i>Apps <b class="n" id="mApp">—</b></span>
           <span data-tip="Memoria anclada (wired)|Reservada por el núcleo de macOS y los drivers. <b>No se puede liberar</b>."><i class="chip" style="background:var(--violet)"></i>Anclada <b class="n" id="mWir">—</b></span>
           <span data-tip="Memoria comprimida|macOS comprime páginas inactivas en vez de escribirlas a disco.|<em>En 0 significa que vas sobrado.</em>"><i class="chip" style="background:var(--amber)"></i>Compr. <b class="n" id="mCmp">—</b></span>
-          <span data-tip="Archivos en caché|<b>Esto no es memoria ocupada.</b> El sistema la cede al instante. RAM libre es RAM desaprovechada."><i class="chip" style="background:var(--dim2)"></i>Caché <b class="n" id="mCac">—</b></span>
+          <span data-tip="Archivos en caché|<b>Esto no es memoria ocupada.</b> El sistema la cede al instante."><i class="chip" style="background:var(--dim2)"></i>Caché <b class="n" id="mCac">—</b></span>
         </div>
         <canvas id="sparkMem" width="400" height="30" style="margin-top:10px;height:30px"></canvas>
-      </div>
-      <div class="dcol">
-        <div class="rows">
+        <div class="rows" style="margin-top:8px">
           <div data-tip="Memoria de intercambio|Espacio en el SSD que macOS usa cuando la RAM se agota.|<b>En &#39;sin usar&#39; es la mejor señal posible.</b>"><span>Swap</span><b id="swap">—</b></div>
           <div data-tip="Memoria libre|RAM sin asignar. Suele ser baja y <b>eso no es malo</b>."><span>Libre</span><b id="memLibre">—</b></div>
           <div data-tip="Presión de memoria|La medida que de verdad importa, y no es el porcentaje usado."><span>Presión</span><b id="memPres">—</b></div>
@@ -404,51 +479,42 @@
         <div class="lbl" style="margin:11px 0 5px">Últimos 60 s ·
           <i class="chip" style="background:var(--cyan);display:inline-block"></i> cpu
           <i class="chip" style="background:var(--violet);display:inline-block;margin-left:5px"></i> ram</div>
-        <canvas id="graf" width="900" height="90" style="height:90px"></canvas>
-      </div>
+        <canvas id="graf" width="600" height="72" style="height:72px"></canvas>
     </div>
-  </div>
+  </section>
 
-  <div class="vital" data-m="termico">
-    <div class="vtop" onclick="alternar('termico')">
-      <span class="vn">Térmico</span>
-      <span class="vv" id="vv_tmp">—<small>°</small></span>
-      <span class="vs" id="vs_tmp">—</span>
-      <canvas id="vc_tmp" width="240" height="18"></canvas>
+  <section class="det" data-m="termico">
+    <div class="dhead">
+      <svg class="ico"><use href="#i-temp"/></svg>
+      <span class="lbl">Térmico</span>
+      <button class="cerrar" onclick="alternar('termico')" title="Cerrar">×</button>
     </div>
-    <div class="vdet">
-      <div class="dcol dcol-full">
-        <div class="lbl" style="margin-bottom:9px">Familias de sensores · <b id="tagTemp">—</b></div>
+    <div class="dbody">
+        <div class="lbl" style="margin-bottom:9px">Familias · <b id="tagTemp">—</b></div>
         <div class="temps" id="temps"></div>
-      </div>
     </div>
-  </div>
+  </section>
 
-  <div class="vital" data-m="vent">
-    <div class="vtop" onclick="alternar('vent')">
-      <span class="vn">Vent</span>
-      <span class="vv" id="vv_fan">—</span>
-      <span class="vs" id="vs_fan">—</span>
-      <canvas id="vc_fan" width="240" height="18"></canvas>
+  <section class="det" data-m="vent">
+    <div class="dhead">
+      <svg class="ico"><use href="#i-fan"/></svg>
+      <span class="lbl">Vent</span>
+      <button class="cerrar" onclick="alternar('vent')" title="Cerrar">×</button>
     </div>
-    <div class="vdet">
-      <div class="dcol dcol-full">
+    <div class="dbody">
         <div class="lbl" style="margin-bottom:9px"
-             data-tip="Ventiladores|<b>0 RPM es lo normal en reposo.</b> Los Mac con Apple Silicon disipan por el chasis de aluminio sin aire forzado mientras el consumo sea bajo.|<em>Solo arrancan bajo carga sostenida. Se leen del chip SMC por IOKit.</em>">Ventiladores · <b id="tagFan">—</b></div>
+             data-tip="Ventiladores|<b>0 RPM es lo normal en reposo.</b> Los Mac con Apple Silicon disipan por el chasis sin aire forzado mientras el consumo sea bajo.|<em>Se leen del chip SMC por IOKit.</em>">Estado · <b id="tagFan">—</b></div>
         <div class="fans" id="fans"></div>
-      </div>
     </div>
-  </div>
+  </section>
 
-  <div class="vital" data-m="consumo">
-    <div class="vtop" onclick="alternar('consumo')">
-      <span class="vn">Consumo</span>
-      <span class="vv" id="vv_pwr">—<small>W</small></span>
-      <span class="vs" id="vs_pwr">—</span>
-      <canvas id="vc_pwr" width="240" height="18"></canvas>
+  <section class="det" data-m="consumo">
+    <div class="dhead">
+      <svg class="ico"><use href="#i-bolt"/></svg>
+      <span class="lbl">Consumo</span>
+      <button class="cerrar" onclick="alternar('consumo')" title="Cerrar">×</button>
     </div>
-    <div class="vdet">
-      <div class="dcol">
+    <div class="dbody">
         <div class="big" id="wTot">—<span class="u">W</span></div>
         <div class="rows" style="margin-top:9px">
           <div id="tipWcpu" data-tip="Potencia del bloque de CPU|Vatios que consumen los núcleos ahora mismo."><span>CPU</span><b id="wCpu">—</b></div>
@@ -456,111 +522,91 @@
           <div data-tip="Neural Engine|Núcleos dedicados a ML.|<em>0 W significa que ninguna app está usando aprendizaje automático.</em>"><span>Neural Engine</span><b id="wAne">—</b></div>
           <div data-tip="Frecuencia por cluster|Cada cluster escala su reloj de forma independiente."><span>Frec. E / P</span><b id="freq">—</b></div>
         </div>
-      </div>
-      <div class="dcol"><div id="avisoPwr"></div></div>
+        <div id="avisoPwr"></div>
     </div>
-  </div>
+  </section>
 
-  <div class="vital" data-m="bateria">
-    <div class="vtop" onclick="alternar('bateria')">
-      <span class="vn">Batería</span>
-      <span class="vv" id="vv_bat">—<small>%</small></span>
-      <span class="vs" id="vs_bat">—</span>
-      <canvas id="vc_bat" width="240" height="18"></canvas>
+  <section class="det" data-m="bateria">
+    <div class="dhead">
+      <svg class="ico"><use href="#i-bat"/></svg>
+      <span class="lbl">Batería</span>
+      <button class="cerrar" onclick="alternar('bateria')" title="Cerrar">×</button>
     </div>
-    <div class="vdet">
-      <div class="dcol">
+    <div class="dbody">
         <div style="display:flex;align-items:baseline;gap:9px">
           <div class="big" id="batP">—<span class="u">%</span></div>
           <span class="u n" id="batR"></span>
-          <span class="tag" id="tagBat">—</span>
         </div>
         <div class="bar"><div class="seg" id="barBat" style="width:0"></div></div>
-      </div>
-      <div class="dcol">
         <div class="rows">
           <div data-tip="Flujo de energía|Vatios entrando o saliendo de la batería.|<em>+ carga; − descarga.</em>"><span>Flujo</span><b id="batW">—</b></div>
           <div data-tip="Ciclos de carga|Un ciclo equivale a consumir el 100% de la capacidad.|Apple estima 1000 ciclos hasta bajar al 80%."><span>Ciclos</span><b id="batC">—</b></div>
           <div data-tip="Capacidad máxima|Cuánto retiene comparada con su capacidad de fábrica."><span>Salud</span><b id="batS">—</b></div>
           <div data-tip="Temperatura de las celdas|El calor es lo que más degrada una batería de litio."><span>Temperatura</span><b id="batT">—</b></div>
+          <div><span>Estado</span><b id="tagBat">—</b></div>
         </div>
-      </div>
     </div>
-  </div>
+  </section>
 
-  <div class="vital" data-m="red">
-    <div class="vtop" onclick="alternar('red')">
-      <span class="vn">Red</span>
-      <span class="vv" id="vv_net">—</span>
-      <span class="vs" id="vs_net">—</span>
-      <canvas id="vc_net" width="240" height="18"></canvas>
+  <section class="det" data-m="red">
+    <div class="dhead">
+      <svg class="ico"><use href="#i-flow"/></svg>
+      <span class="lbl">Red</span>
+      <button class="cerrar" onclick="alternar('red')" title="Cerrar">×</button>
     </div>
-    <div class="vdet">
-      <div class="dcol dcol-full"
-           data-tip="Tráfico de red|Bytes por segundo por todas las interfaces físicas, excluyendo loopback.|Derivada de los contadores acumulados del sistema.">
-        <div class="big" style="font-size:24px" id="netIn">—</div>
-        <div class="n" style="font-size:13px;color:var(--dim)" id="netOut">—</div>
-        <canvas id="sparkNet" width="800" height="70" style="margin-top:10px;height:70px"></canvas>
-      </div>
+    <div class="dbody">
+        <div data-tip="Tráfico de red|Bytes por segundo por todas las interfaces físicas, excluyendo loopback.|Derivada de los contadores acumulados del sistema.">
+          <div class="big" style="font-size:24px" id="netIn">—</div>
+          <div class="n" style="font-size:13px;color:var(--dim)" id="netOut">—</div>
+        </div>
+        <canvas id="sparkNet" width="500" height="64" style="margin-top:10px;height:64px"></canvas>
     </div>
-  </div>
+  </section>
 
-  <div class="vital" data-m="disco">
-    <div class="vtop" onclick="alternar('disco')">
-      <span class="vn">Disco</span>
-      <span class="vv" id="vv_dsk">—</span>
-      <span class="vs" id="vs_dsk">—</span>
-      <canvas id="vc_dsk" width="240" height="18"></canvas>
+  <section class="det" data-m="disco">
+    <div class="dhead">
+      <svg class="ico"><use href="#i-flow"/></svg>
+      <span class="lbl">Disco</span>
+      <button class="cerrar" onclick="alternar('disco')" title="Cerrar">×</button>
     </div>
-    <div class="vdet">
-      <div class="dcol dcol-full"
-           data-tip="Actividad de disco|Lectura y escritura sobre el SSD interno.|<em>Tu SSD sostiene varios GB/s: estas cifras rara vez lo rozan.</em>">
-        <div class="big" style="font-size:24px" id="dskR">—</div>
-        <div class="n" style="font-size:13px;color:var(--dim)" id="dskW">—</div>
-        <canvas id="sparkDsk" width="800" height="70" style="margin-top:10px;height:70px"></canvas>
-      </div>
+    <div class="dbody">
+        <div data-tip="Actividad de disco|Lectura y escritura sobre el SSD interno.|<em>Tu SSD sostiene varios GB/s: estas cifras rara vez lo rozan.</em>">
+          <div class="big" style="font-size:24px" id="dskR">—</div>
+          <div class="n" style="font-size:13px;color:var(--dim)" id="dskW">—</div>
+        </div>
+        <canvas id="sparkDsk" width="500" height="64" style="margin-top:10px;height:64px"></canvas>
     </div>
-  </div>
+  </section>
 
-  <div class="vital" data-m="procesos">
-    <div class="vtop" onclick="alternar('procesos')">
-      <span class="vn">Procesos</span>
-      <span class="vv" id="vv_prc">—</span>
-      <span class="vs" id="vs_prc">—</span>
-      <canvas id="vc_prc" width="240" height="18"></canvas>
+  <section class="det" data-m="procesos">
+    <div class="dhead">
+      <svg class="ico"><use href="#i-list"/></svg>
+      <span class="lbl">Procesos</span>
+      <button class="cerrar" onclick="alternar('procesos')" title="Cerrar">×</button>
     </div>
-    <div class="vdet">
-      <div class="dcol">
+    <div class="dbody">
         <div class="lbl" style="margin-bottom:6px" id="tipPorCpu"
              data-tip="Consumo de CPU|Procesos ordenados por porcentaje de CPU.">Por CPU · <b id="tagProc">—</b></div>
         <table><tbody id="procs"></tbody></table>
-      </div>
-      <div class="dcol">
-        <div class="lbl" style="margin-bottom:6px"
+        <div class="lbl" style="margin:12px 0 6px"
              data-tip="Consumo de memoria|Ordenados por RSS: la memoria física que ocupan ahora.|Es normal que la suma supere la RAM instalada: las librerías compartidas se cuentan en cada proceso.">Por memoria</div>
         <table><tbody id="procsMem"></tbody></table>
-      </div>
     </div>
-  </div>
+  </section>
 
-  <div class="vital" data-m="puertos">
-    <div class="vtop" onclick="alternar('puertos')">
-      <span class="vn">Puertos</span>
-      <span class="vv" id="vv_prt">—</span>
-      <span class="vs" id="vs_prt">—</span>
-      <canvas id="vc_prt" width="240" height="18"></canvas>
+  <section class="det" data-m="puertos">
+    <div class="dhead">
+      <svg class="ico"><use href="#i-net"/></svg>
+      <span class="lbl">Puertos</span>
+      <button class="cerrar" onclick="alternar('puertos')" title="Cerrar">×</button>
     </div>
-    <div class="vdet">
-      <div class="dcol dcol-full">
+    <div class="dbody">
         <div class="lbl" style="margin-bottom:8px"
              data-tip="Puertos en escucha|<b>local</b>: ligado a 127.0.0.1, solo accesible desde este Mac.<br><b>expuesto</b>: alcanzable desde cualquier equipo de tu red.|<em>Sin sudo solo se ven tus procesos.</em>">En escucha · <b id="tagPort">—</b></div>
         <div id="ports"></div>
-      </div>
     </div>
-  </div>
-
+  </section>
 </div>
-
 
 <footer>
   <span><svg class="ico" style="width:11px;height:11px;vertical-align:-1px"><use href="#i-srv"/></svg>
@@ -780,22 +826,34 @@ function guardarAbiertas(s){
   try{ localStorage.setItem('abiertas',JSON.stringify([...s])) }catch(e){}
 }
 
+// Contador de apertura: define el orden en la rejilla, de modo que el
+// detalle recién abierto aparece detrás de los que ya estaban.
+let secuencia=0;
+
+function sel(clave){ return document.querySelector(`.vital[data-m="${clave}"]`) }
+function det(clave){ return document.querySelector(`.det[data-m="${clave}"]`) }
+
 function alternar(clave){
-  const el=document.querySelector(`.vital[data-m="${clave}"]`);
-  if(!el)return;
-  el.classList.toggle('exp');
+  const v=sel(clave), d=det(clave);
+  if(!v||!d)return;
+  const abrir=!v.classList.contains('exp');
+  v.classList.toggle('exp',abrir);
+  d.classList.toggle('on',abrir);
+  // El grid reordena por CSS; los ocultos salen del flujo y el resto
+  // se recoloca solo para ocupar el hueco.
+  d.style.order = abrir ? ++secuencia : '';
   const s=abiertas();
-  el.classList.contains('exp') ? s.add(clave) : s.delete(clave);
+  abrir ? s.add(clave) : s.delete(clave);
   guardarAbiertas(s);
-  // El detalle estaba oculto y sus lienzos sin dimensiones. Se repinta
-  // tras dos cuadros para que el navegador ya haya recalculado el layout.
+  // Los lienzos estaban ocultos y sin dimensiones: se repintan tras dos
+  // cuadros, cuando el navegador ya ha recalculado el layout.
   requestAnimationFrame(()=>requestAnimationFrame(repintarLienzos));
 }
 
 function restaurarAbiertas(){
   abiertas().forEach(k=>{
-    const el=document.querySelector(`.vital[data-m="${k}"]`);
-    if(el) el.classList.add('exp');
+    const v=sel(k), d=det(k);
+    if(v&&d){ v.classList.add('exp'); d.classList.add('on'); d.style.order=++secuencia }
   });
   requestAnimationFrame(()=>requestAnimationFrame(repintarLienzos));
 }
@@ -804,9 +862,13 @@ function alternarTodos(){
   const hayCerrada=[...document.querySelectorAll('.vital')]
     .some(v=>!v.classList.contains('exp'));
   const s=new Set();
-  document.querySelectorAll('.vital').forEach(v=>{
+  MODULOS.forEach(k=>{
+    const v=sel(k), d=det(k);
+    if(!v||!d)return;
     v.classList.toggle('exp',hayCerrada);
-    if(hayCerrada) s.add(v.dataset.m);
+    d.classList.toggle('on',hayCerrada);
+    d.style.order = hayCerrada ? ++secuencia : '';
+    if(hayCerrada) s.add(k);
   });
   guardarAbiertas(s);
   requestAnimationFrame(()=>requestAnimationFrame(repintarLienzos));

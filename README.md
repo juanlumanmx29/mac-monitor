@@ -20,16 +20,19 @@ privileges is power draw in watts, and the dashboard works fine without it.
 
 ### The interface
 
-Eleven cards, one per aspect of the machine. Each shows a **summary** — the
-current value, a line of context and a 60-second sparkline — so the whole
-state of the machine reads at a glance without clicking anything.
+Two zones. On top, eleven **selector cards**, one per aspect of the machine.
+Each shows the current value, a line of context and a 60-second sparkline, so
+the whole state reads at a glance without clicking anything.
 
-Click a card and it **expands in place**: it takes the full row width without
-moving from its position, and its detail unfolds right under its own summary.
-Click again to collapse. Several can stay open at once, and which ones you
-left open is remembered between sessions.
+Click a card and it lights up as selected, opening its **detail panel in the
+grid below** — three per row, wrapping into new rows as you open more. Each
+newly opened panel appears after the ones already there. Close one, by
+clicking its card again or the × in its header, and the rest reflow to fill
+the gap.
 
-| Card | Summary | Expanded detail | Needs sudo |
+Which cards you left selected is remembered between sessions.
+
+| Card | Summary | Detail panel | Needs sudo |
 |---|---|---|---|
 | **CPU** | Load, core count | Per-core heat grid split into efficiency and performance clusters, gauge, processes, threads, clock | no |
 | **GPU** | Utilization, VRAM | Gauge, renderer, tiler, clock, residency | no |
@@ -73,8 +76,8 @@ The browser opens at `http://localhost:8765`.
 
 | Key | Action |
 |---|---|
-| `1`–`9` | Open or close that card (the first nine; Processes and Ports are click-only) |
-| `E` | Open or close every card at once |
+| `1`–`9` | Select or deselect that card (the first nine; Processes and Ports are click-only) |
+| `E` | Select or deselect every card at once |
 | `T` | Toggle light / dark theme |
 | `P` | Pause / resume refresh |
 | `R` | Restart the server |
@@ -156,16 +159,20 @@ necesita privilegios es el consumo en vatios, y el panel funciona igual sin eso.
 
 ### La interfaz
 
-Once tarjetas, una por cada aspecto del equipo. Cada una muestra un **resumen**
-—el valor actual, una línea de contexto y un minigráfico de 60 segundos— de
-modo que el estado completo de la máquina se lee de un vistazo sin pulsar nada.
+Dos zonas. Arriba, once **tarjetas selectoras**, una por cada aspecto del
+equipo. Cada una muestra el valor actual, una línea de contexto y un
+minigráfico de 60 segundos, de modo que el estado completo se lee de un
+vistazo sin pulsar nada.
 
-Al pulsar una tarjeta, esta **se agranda en su sitio**: ocupa el ancho completo
-de la fila sin moverse de su posición, y su detalle se despliega justo debajo
-de su propio resumen. Pulsándola otra vez se cierra. Pueden quedar varias
-abiertas a la vez, y cuáles dejaste abiertas se recuerda entre sesiones.
+Al pulsar una tarjeta se marca como activa y abre su **panel de detalle en la
+rejilla de abajo** —tres por fila, formando filas nuevas a medida que abres
+más—. Cada panel nuevo aparece detrás de los que ya estaban. Al cerrar uno,
+pulsando otra vez su tarjeta o la × de su cabecera, los demás se recolocan
+para ocupar el hueco.
 
-| Tarjeta | Resumen | Detalle desplegado | Requiere sudo |
+Qué tarjetas dejaste activas se recuerda entre sesiones.
+
+| Tarjeta | Resumen | Panel de detalle | Requiere sudo |
 |---|---|---|---|
 | **CPU** | Carga, número de núcleos | Rejilla de calor por núcleo separada en clusters de eficiencia y rendimiento, medidor, procesos, hilos, frecuencia | no |
 | **GPU** | Utilización, VRAM | Medidor, renderizador, teselador, frecuencia, residencia | no |
@@ -211,8 +218,8 @@ El navegador se abre en `http://localhost:8765`.
 
 | Tecla | Acción |
 |---|---|
-| `1`–`9` | Abre o cierra esa tarjeta (las primeras nueve; Procesos y Puertos solo con clic) |
-| `E` | Abre o cierra todas a la vez |
+| `1`–`9` | Activa o desactiva esa tarjeta (las primeras nueve; Procesos y Puertos solo con clic) |
+| `E` | Activa o desactiva todas a la vez |
 | `T` | Alterna tema claro / oscuro |
 | `P` | Pausa / reanuda el refresco |
 | `R` | Reinicia el servidor |
