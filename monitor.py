@@ -885,8 +885,12 @@ def main():
     except Exception:
         pass
 
-    print("Monitor activo en http://localhost:%d  (pid %d)" % (PUERTO, os.getpid()))
-    print("Detener con el boton del panel, o Ctrl+C aqui.")
+    # El lanzador imprime el aviso completo cuando el puerto ya responde;
+    # aqui basta una linea discreta para quien ejecute el script a mano.
+    # flush explicito: con la salida redirigida, Python usa buffer de bloque
+    # y la linea no aparece hasta que el proceso termina.
+    print("  servidor escuchando en 127.0.0.1:%d (pid %d)"
+          % (PUERTO, os.getpid()), flush=True)
     try:
         servidor.serve_forever()
     except KeyboardInterrupt:
