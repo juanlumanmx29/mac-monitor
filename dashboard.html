@@ -102,40 +102,35 @@
     display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .vital canvas{height:18px;margin-top:3px}
 
-  /* ---------- carrusel ---------- */
-  .tabs{display:flex;align-items:center;gap:6px;margin-bottom:10px}
-  .tabs-in{display:flex;gap:5px;overflow-x:auto;flex:1;scrollbar-width:none}
-  .tabs-in::-webkit-scrollbar{display:none}
-  .tab{background:transparent;border:1px solid transparent;color:var(--dim);
-    border-radius:5px;padding:6px 11px;font:600 10px/1 inherit;letter-spacing:1.1px;
-    text-transform:uppercase;cursor:pointer;white-space:nowrap;transition:.15s}
-  .tab:hover{color:var(--txt);border-color:var(--line)}
-  .tab.act{color:var(--bg);background:var(--cyan);border-color:var(--cyan)}
-  .nav{padding:6px 10px;font-size:15px;line-height:1;color:var(--dim);
-    background:var(--panel);border:1px solid var(--line);border-radius:5px;cursor:pointer}
-  .nav:hover{color:var(--cyan);border-color:rgba(var(--rgb-cyan),.45)}
+  /* ---------- mosaico de módulos ---------- */
+  .mosaico{display:grid;gap:10px;align-content:start;
+    grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+  .modulo{background:var(--panel);border:1px solid var(--line);border-radius:8px;
+    position:relative;overflow:hidden;
+    transition:border-color .2s,background .2s,box-shadow .2s}
+  .modulo::before{content:"";position:absolute;top:0;left:0;right:0;height:1px;
+    background:linear-gradient(90deg,transparent,rgba(var(--rgb-cyan),.3),transparent)}
+  .modulo:hover{border-color:rgba(var(--rgb-cyan),.35)}
+  /* Un módulo expandido ocupa toda la fila y despliega su segunda mitad. */
+  .modulo.exp{grid-column:1 / -1;border-color:rgba(var(--rgb-cyan),.5);
+    box-shadow:var(--sombra)}
 
-  /* ---------- panel de detalle ---------- */
-  /* El escenario ocupa el alto restante para que nada exija scroll. */
-  .escenario{flex:1;min-height:0;position:relative}
-  .panel{display:none;gap:11px;height:100%;
-    grid-template-columns:repeat(3,1fr)}
-  .panel.act{display:grid;animation:entra .22s ease}
-  @keyframes entra{from{opacity:0;transform:translateX(10px)}to{opacity:1;transform:none}}
-  .pcol{background:var(--panel);border:1px solid var(--line);border-radius:8px;
-    padding:13px 14px;overflow:auto;position:relative;
-    transition:border-color .2s,background .2s}
-  .pcol::before{content:"";position:absolute;top:0;left:0;right:0;height:1px;
-    background:linear-gradient(90deg,transparent,rgba(var(--rgb-cyan),.35),transparent)}
-  .pcol:hover{border-color:rgba(var(--rgb-cyan),.3)}
-  .pcol-1{grid-column:span 1}
-  .pcol-2{grid-column:span 2}
-  .pcol-full{grid-column:1 / -1}
-  @media(max-width:900px){
-    .panel{grid-template-columns:1fr}
-    .pcol-1,.pcol-2,.pcol-full{grid-column:1 / -1}
-    .escenario{min-height:420px}
-  }
+  .mhead{display:flex;align-items:center;gap:7px;cursor:pointer;
+    padding:11px 13px 9px;color:var(--dim);transition:color .18s;user-select:none}
+  .mhead:hover{color:var(--cyan)}
+  .mhead .lbl{flex:1}
+  .mhead .chev{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2;
+    stroke-linecap:round;stroke-linejoin:round;transition:transform .25s;opacity:.65}
+  .modulo.exp .mhead .chev{transform:rotate(180deg)}
+  .modulo.exp .mhead{color:var(--cyan)}
+
+  .mbody{padding:0 13px 13px}
+  /* Colapsado se ve solo la parte principal; expandido, ambas en columnas. */
+  .parte.extra{display:none}
+  .modulo.exp .mbody{display:grid;gap:18px;
+    grid-template-columns:repeat(auto-fit,minmax(290px,1fr))}
+  .modulo.exp .parte.extra{display:block;animation:despliega .25s ease}
+  @keyframes despliega{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
 
   /* ---------- rejilla (heredada) ---------- */
   .grid{display:grid;gap:11px;grid-template-columns:repeat(12,1fr)}
@@ -293,6 +288,7 @@
   <symbol id="i-lock" viewBox="0 0 24 24"><rect x="4" y="10.5" width="16" height="10.5" rx="2"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/></symbol>
   <symbol id="i-gpu" viewBox="0 0 24 24"><rect x="2.5" y="5.5" width="19" height="13" rx="2"/><rect x="6" y="9" width="6" height="6" rx="1"/><path d="M15.5 9h3M15.5 12h3M15.5 15h3M7 18.5v2M17 18.5v2"/></symbol>
   <symbol id="i-flow" viewBox="0 0 24 24"><path d="M3 8h12l-3-3M21 16H9l3 3"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24"><path d="M5 9l7 7 7-7"/></symbol>
   <symbol id="i-luna" viewBox="0 0 24 24"><path d="M20.5 14.2A8.5 8.5 0 1 1 9.8 3.5a6.8 6.8 0 0 0 10.7 10.7z"/></symbol>
   <symbol id="i-sol" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.2"/><path d="M12 1.8v2.4M12 19.8v2.4M4.6 4.6l1.7 1.7M17.7 17.7l1.7 1.7M1.8 12h2.4M19.8 12h2.4M4.6 19.4l1.7-1.7M17.7 6.3l1.7-1.7"/></symbol>
   <symbol id="i-pause" viewBox="0 0 24 24"><path d="M9 4v16M15 4v16"/></symbol>
@@ -314,6 +310,7 @@
       <span class="lbl" style="letter-spacing:1.4px">T+</span>
       <span class="n" id="reloj" style="color:var(--cyan);font-size:12px">--:--:--</span></div>
     <div class="estado"><span class="dot" id="dot"></span><span id="txtEstado">enlazando</span></div>
+    <button onclick="alternarTodos()" title="Expandir o colapsar todo"><svg class="ico"><use href="#i-chev"/></svg>Todo<kbd>E</kbd></button>
     <button onclick="alternarTema()" id="bTema" title="Cambiar tema"><svg class="ico"><use href="#i-luna" id="iTema"/></svg><span id="txtTema">Oscuro</span><kbd>T</kbd></button>
     <button onclick="pausa()" id="bPausa"><svg class="ico"><use href="#i-pause" id="iPausa"/></svg>Pausar<kbd>P</kbd></button>
     <button onclick="control('reiniciar')"><svg class="ico"><use href="#i-rst"/></svg>Reiniciar<kbd>R</kbd></button>
@@ -324,191 +321,218 @@
 <!-- Franja de vitales: siempre visible, resume el estado del equipo -->
 <div class="vitales" id="vitales"></div>
 
-<!-- Navegación del carrusel -->
-<nav class="tabs"><div class="tabs-in" id="tabs"></div>
-  <button class="nav" onclick="irPanel(-1)" title="Anterior (←)">‹</button>
-  <button class="nav" onclick="irPanel(1)" title="Siguiente (→)">›</button>
-</nav>
+<!-- Mosaico: todos los módulos a la vez, cada uno expandible -->
+<div class="mosaico" id="mosaico">
 
-<div class="escenario" id="escenario">
-
-  <!-- ---------------- NÚCLEOS ---------------- -->
-  <section class="panel" data-p="nucleos">
-    <div class="pcol pcol-1">
-      <div class="head"><svg class="ico"><use href="#i-chip"/></svg>
-        <span class="lbl" id="tipCargaCpu">Carga CPU</span></div>
-      <div class="gauge" id="tipGauge">
-        <svg viewBox="0 0 100 100"><circle class="pista" cx="50" cy="50" r="41"/>
-          <circle class="val" id="gCpu" cx="50" cy="50" r="41" stroke="var(--cyan)" stroke-dasharray="0 999"/></svg>
-        <div>
-          <div class="big" id="cpuTot">—<span class="u">%</span></div>
-          <div class="lbl" style="margin-top:6px">E <b class="n" id="eProm" style="color:var(--green)">—</b>
-            · P <b class="n" id="pProm" style="color:var(--cyan)">—</b></div>
-          <div class="lbl" style="margin-top:3px">carga <b class="n" id="carga">—</b></div>
+  <section class="modulo" data-m="nucleos">
+    <div class="mhead" onclick="expandir('nucleos')">
+      <svg class="ico"><use href="#i-act"/></svg>
+      <span class="lbl">Núcleos</span>
+      <span class="tag" id="tagCores">—</span>
+      <svg class="chev"><use href="#i-chev"/></svg>
+    </div>
+    <div class="mbody">
+      <div class="parte principal">
+        <div class="cores" id="cores"></div>
+      </div>
+      <div class="parte extra">
+        <div class="gauge" id="tipGauge">
+          <svg viewBox="0 0 100 100"><circle class="pista" cx="50" cy="50" r="41"/>
+            <circle class="val" id="gCpu" cx="50" cy="50" r="41" stroke="var(--cyan)" stroke-dasharray="0 999"/></svg>
+          <div>
+            <div class="big" id="cpuTot">—<span class="u">%</span></div>
+            <div class="lbl" id="tipCargaCpu" style="margin-top:6px">E <b class="n" id="eProm" style="color:var(--green)">—</b>
+              · P <b class="n" id="pProm" style="color:var(--cyan)">—</b></div>
+            <div class="lbl" style="margin-top:3px">carga <b class="n" id="carga">—</b></div>
+          </div>
+        </div>
+        <canvas id="sparkCpu" width="400" height="34" style="margin-top:12px;height:34px"></canvas>
+        <div class="rows" style="margin-top:9px">
+          <div data-tip="Procesos en ejecución|Programas vivos, incluidos los demonios del sistema que nunca ves. Un macOS en reposo ronda los 400-600."><span>Procesos</span><b id="sysProc">—</b></div>
+          <div id="tipHilos" data-tip="Hilos|Unidades de ejecución dentro de los procesos."><span>Hilos</span><b id="sysHilos">—</b></div>
+          <div data-tip="Frecuencia por cluster|Requiere powermetrics (sudo)."><span>Frecuencia E / P</span><b id="freqCpu">—</b></div>
         </div>
       </div>
-      <canvas id="sparkCpu" width="400" height="34" style="margin-top:12px;height:34px"></canvas>
-      <div class="rows" style="margin-top:9px">
-        <div data-tip="Procesos en ejecución|Programas vivos, incluidos los demonios del sistema que nunca ves. Un macOS en reposo ronda los 400-600."><span>Procesos</span><b id="sysProc">—</b></div>
-        <div id="tipHilos" data-tip="Hilos|Unidades de ejecución dentro de los procesos."><span>Hilos</span><b id="sysHilos">—</b></div>
-        <div data-tip="Frecuencia por cluster|Requiere powermetrics (sudo)."><span>Frecuencia E / P</span><b id="freqCpu">—</b></div>
-      </div>
-    </div>
-    <div class="pcol pcol-2">
-      <div class="head"><svg class="ico"><use href="#i-act"/></svg><span class="lbl">Núcleos</span>
-        <span class="tag" id="tagCores">—</span></div>
-      <div class="cores" id="cores"></div>
     </div>
   </section>
 
-  <!-- ---------------- TÉRMICO ---------------- -->
-  <section class="panel" data-p="termico">
-    <div class="pcol pcol-2">
-      <div class="head"><svg class="ico"><use href="#i-temp"/></svg><span class="lbl">Sensores térmicos</span>
-        <span class="tag" id="tagTemp">—</span></div>
-      <div class="temps" id="temps"></div>
+  <section class="modulo" data-m="termico">
+    <div class="mhead" onclick="expandir('termico')">
+      <svg class="ico"><use href="#i-temp"/></svg>
+      <span class="lbl">Térmico</span>
+      <span class="tag" id="tagTemp">—</span>
+      <svg class="chev"><use href="#i-chev"/></svg>
     </div>
-    <div class="pcol pcol-1">
-      <div class="head"><svg class="ico"><use href="#i-fan"/></svg>
-        <span class="lbl" data-tip="Ventiladores|<b>0 RPM es lo normal en reposo.</b> Los Mac con Apple Silicon disipan por el chasis de aluminio sin aire forzado mientras el consumo sea bajo.|<em>Solo arrancan bajo carga sostenida. Se leen del chip SMC por IOKit.</em>">Ventiladores</span>
-        <span class="tag" id="tagFan">—</span></div>
-      <div class="fans" id="fans"></div>
+    <div class="mbody">
+      <div class="parte principal"><div class="temps" id="temps"></div></div>
+      <div class="parte extra">
+        <div class="lbl" style="margin-bottom:8px"
+             data-tip="Ventiladores|<b>0 RPM es lo normal en reposo.</b> Los Mac con Apple Silicon disipan por el chasis de aluminio sin aire forzado mientras el consumo sea bajo.|<em>Solo arrancan bajo carga sostenida. Se leen del chip SMC por IOKit.</em>">Ventiladores · <b id="tagFan">—</b></div>
+        <div class="fans" id="fans"></div>
+      </div>
     </div>
   </section>
 
-  <!-- ---------------- MEMORIA ---------------- -->
-  <section class="panel" data-p="memoria">
-    <div class="pcol pcol-1">
-      <div class="head"><svg class="ico"><use href="#i-mem"/></svg><span class="lbl">Memoria</span>
-        <span class="tag" id="tagMem">—</span></div>
-      <div class="big" id="memU">—</div>
-      <div class="bar" id="barMem"></div>
-      <div class="leg">
-        <span data-tip="Memoria de aplicaciones|Lo que piden tus programas para funcionar.|Es la porción que de verdad puedes liberar cerrando cosas."><i class="chip" style="background:var(--cyan)"></i>Apps <b class="n" id="mApp">—</b></span>
-        <span data-tip="Memoria anclada (wired)|Reservada por el núcleo de macOS y los drivers. <b>No se puede liberar</b>: el sistema la necesita siempre."><i class="chip" style="background:var(--violet)"></i>Anclada <b class="n" id="mWir">—</b></span>
-        <span data-tip="Memoria comprimida|Cuando la RAM escasea, macOS comprime páginas inactivas en vez de escribirlas a disco.|<em>En 0 significa que vas sobrado.</em>"><i class="chip" style="background:var(--amber)"></i>Compr. <b class="n" id="mCmp">—</b></span>
-        <span data-tip="Archivos en caché|Archivos leídos recientemente que macOS mantiene en RAM.|<b>Esto no es memoria ocupada.</b> El sistema la cede al instante. RAM libre es RAM desaprovechada."><i class="chip" style="background:var(--dim2)"></i>Caché <b class="n" id="mCac">—</b></span>
-      </div>
-      <canvas id="sparkMem" width="400" height="34" style="margin-top:11px;height:34px"></canvas>
-      <div class="rows" style="margin-top:8px">
-        <div data-tip="Memoria de intercambio|Espacio en el SSD que macOS usa cuando la RAM se agota.|<b>En &#39;sin usar&#39; es la mejor señal posible.</b>"><span>Swap</span><b id="swap">—</b></div>
-        <div data-tip="Memoria libre|RAM sin asignar. Suele ser baja y <b>eso no es malo</b>: macOS prefiere llenarla de caché útil."><span>Libre</span><b id="memLibre">—</b></div>
-        <div data-tip="Presión de memoria|La medida que de verdad importa, y no es el porcentaje usado.|<b>Holgada</b>: sin compresión ni swap.<br><b>Con compresión</b>: macOS empezó a apretar."><span>Presión</span><b id="memPres">—</b></div>
-      </div>
+  <section class="modulo" data-m="memoria">
+    <div class="mhead" onclick="expandir('memoria')">
+      <svg class="ico"><use href="#i-mem"/></svg>
+      <span class="lbl">Memoria</span>
+      <span class="tag" id="tagMem">—</span>
+      <svg class="chev"><use href="#i-chev"/></svg>
     </div>
-    <div class="pcol pcol-2">
-      <div class="head"><svg class="ico"><use href="#i-act"/></svg><span class="lbl">Últimos 60 s</span>
-        <span class="tag"><i class="chip" style="background:var(--cyan);display:inline-block"></i> cpu
-          <i class="chip" style="background:var(--violet);display:inline-block;margin-left:6px"></i> ram</span></div>
-      <canvas id="graf" width="900" height="150" style="height:150px"></canvas>
+    <div class="mbody">
+      <div class="parte principal">
+        <div class="big" id="memU">—</div>
+        <div class="bar" id="barMem"></div>
+        <div class="leg">
+          <span data-tip="Memoria de aplicaciones|Lo que piden tus programas para funcionar.|Es la porción que de verdad puedes liberar cerrando cosas."><i class="chip" style="background:var(--cyan)"></i>Apps <b class="n" id="mApp">—</b></span>
+          <span data-tip="Memoria anclada (wired)|Reservada por el núcleo de macOS y los drivers. <b>No se puede liberar</b>."><i class="chip" style="background:var(--violet)"></i>Anclada <b class="n" id="mWir">—</b></span>
+          <span data-tip="Memoria comprimida|macOS comprime páginas inactivas en vez de escribirlas a disco.|<em>En 0 significa que vas sobrado.</em>"><i class="chip" style="background:var(--amber)"></i>Compr. <b class="n" id="mCmp">—</b></span>
+          <span data-tip="Archivos en caché|<b>Esto no es memoria ocupada.</b> El sistema la cede al instante. RAM libre es RAM desaprovechada."><i class="chip" style="background:var(--dim2)"></i>Caché <b class="n" id="mCac">—</b></span>
+        </div>
+        <canvas id="sparkMem" width="400" height="30" style="margin-top:10px;height:30px"></canvas>
+      </div>
+      <div class="parte extra">
+        <div class="rows">
+          <div data-tip="Memoria de intercambio|Espacio en el SSD que macOS usa cuando la RAM se agota.|<b>En &#39;sin usar&#39; es la mejor señal posible.</b>"><span>Swap</span><b id="swap">—</b></div>
+          <div data-tip="Memoria libre|RAM sin asignar. Suele ser baja y <b>eso no es malo</b>."><span>Libre</span><b id="memLibre">—</b></div>
+          <div data-tip="Presión de memoria|La medida que de verdad importa, y no es el porcentaje usado."><span>Presión</span><b id="memPres">—</b></div>
+        </div>
+        <div class="lbl" style="margin:11px 0 5px">Últimos 60 s ·
+          <i class="chip" style="background:var(--cyan);display:inline-block"></i> cpu
+          <i class="chip" style="background:var(--violet);display:inline-block;margin-left:5px"></i> ram</div>
+        <canvas id="graf" width="900" height="90" style="height:90px"></canvas>
+      </div>
     </div>
   </section>
 
-  <!-- ---------------- GPU ---------------- -->
-  <section class="panel" data-p="gpu">
-    <div class="pcol pcol-1">
-      <div class="head"><svg class="ico"><use href="#i-gpu"/></svg><span class="lbl">Carga GPU</span>
-        <span class="tag" id="tagGpu">—</span></div>
-      <div class="gauge">
-        <svg viewBox="0 0 100 100"><circle class="pista" cx="50" cy="50" r="41"/>
-          <circle class="val" id="gGpu" cx="50" cy="50" r="41" stroke="var(--violet)" stroke-dasharray="0 999"/></svg>
-        <div>
-          <div class="big" id="gpuTot">—<span class="u">%</span></div>
-          <div class="lbl" style="margin-top:6px" id="gpuNucleos">—</div>
-          <div class="lbl" style="margin-top:3px">vram <b class="n" id="vram">—</b></div>
+  <section class="modulo" data-m="gpu">
+    <div class="mhead" onclick="expandir('gpu')">
+      <svg class="ico"><use href="#i-gpu"/></svg>
+      <span class="lbl">GPU</span>
+      <span class="tag" id="tagGpu">—</span>
+      <svg class="chev"><use href="#i-chev"/></svg>
+    </div>
+    <div class="mbody">
+      <div class="parte principal">
+        <div class="gauge">
+          <svg viewBox="0 0 100 100"><circle class="pista" cx="50" cy="50" r="41"/>
+            <circle class="val" id="gGpu" cx="50" cy="50" r="41" stroke="var(--violet)" stroke-dasharray="0 999"/></svg>
+          <div>
+            <div class="big" id="gpuTot">—<span class="u">%</span></div>
+            <div class="lbl" style="margin-top:6px" id="gpuNucleos">—</div>
+            <div class="lbl" style="margin-top:3px">vram <b class="n" id="vram">—</b></div>
+          </div>
+        </div>
+        <canvas id="sparkGpu" width="400" height="30" style="margin-top:11px;height:30px"></canvas>
+      </div>
+      <div class="parte extra">
+        <div class="rows">
+          <div data-tip="Renderizador|La etapa que dibuja los píxeles: sombreado, texturas, efectos."><span>Renderizador</span><b id="gpuRender">—</b></div>
+          <div data-tip="Teselador|Apple Silicon usa renderizado por tiles.|Ahorra ancho de banda de memoria, clave cuando CPU y GPU comparten RAM."><span>Teselador</span><b id="gpuTiler">—</b></div>
+          <div data-tip="Frecuencia de reloj de la GPU|Requiere powermetrics (sudo)."><span>Frecuencia</span><b id="gpuFreq">—</b></div>
+          <div data-tip="Residencia de GPU|Porcentaje del tiempo ejecutando trabajo."><span>GPU activa</span><b id="gpuAct">—</b></div>
         </div>
       </div>
-      <canvas id="sparkGpu" width="400" height="34" style="margin-top:12px;height:34px"></canvas>
     </div>
-    <div class="pcol pcol-2">
-      <div class="head"><svg class="ico"><use href="#i-act"/></svg><span class="lbl">Detalle gráfico</span></div>
-      <div class="rows">
-        <div data-tip="Renderizador|La etapa que dibuja los píxeles: sombreado, texturas, efectos."><span>Renderizador</span><b id="gpuRender">—</b></div>
-        <div data-tip="Teselador|Apple Silicon usa renderizado por tiles: divide la pantalla en cuadrículas.|Ahorra ancho de banda de memoria, clave cuando CPU y GPU comparten RAM."><span>Teselador</span><b id="gpuTiler">—</b></div>
-        <div data-tip="Frecuencia de reloj de la GPU|Requiere powermetrics (sudo)."><span>Frecuencia</span><b id="gpuFreq">—</b></div>
-        <div data-tip="Residencia de GPU|Porcentaje del tiempo ejecutando trabajo, medido por powermetrics."><span>GPU activa</span><b id="gpuAct">—</b></div>
+  </section>
+
+  <section class="modulo" data-m="energia">
+    <div class="mhead" onclick="expandir('energia')">
+      <svg class="ico"><use href="#i-bolt"/></svg>
+      <span class="lbl">Energía</span>
+      <span class="tag" id="tagPwr">—</span>
+      <svg class="chev"><use href="#i-chev"/></svg>
+    </div>
+    <div class="mbody">
+      <div class="parte principal">
+        <div class="big" id="wTot">—<span class="u">W</span></div>
+        <div class="rows" style="margin-top:9px">
+          <div id="tipWcpu" data-tip="Potencia del bloque de CPU|Vatios que consumen los núcleos ahora mismo."><span>CPU</span><b id="wCpu">—</b></div>
+          <div id="tipWgpu" data-tip="Potencia del bloque gráfico|Sube con vídeo, juegos o cualquier cosa acelerada."><span>GPU</span><b id="wGpu">—</b></div>
+          <div data-tip="Neural Engine|Núcleos dedicados a ML.|<em>0 W significa que ninguna app está usando aprendizaje automático.</em>"><span>Neural Engine</span><b id="wAne">—</b></div>
+          <div data-tip="Frecuencia por cluster|Cada cluster escala su reloj de forma independiente."><span>Frec. E / P</span><b id="freq">—</b></div>
+        </div>
+        <div id="avisoPwr"></div>
+      </div>
+      <div class="parte extra">
+        <div class="lbl" style="margin-bottom:7px">Batería · <b id="tagBat">—</b></div>
+        <div style="display:flex;align-items:baseline;gap:9px">
+          <div class="big" id="batP">—<span class="u">%</span></div>
+          <span class="u n" id="batR"></span>
+        </div>
+        <div class="bar"><div class="seg" id="barBat" style="width:0"></div></div>
+        <div class="rows">
+          <div data-tip="Flujo de energía|Vatios entrando o saliendo de la batería.|<em>+ carga; − descarga.</em>"><span>Flujo</span><b id="batW">—</b></div>
+          <div data-tip="Ciclos de carga|Un ciclo equivale a consumir el 100% de la capacidad.|Apple estima 1000 ciclos hasta bajar al 80%."><span>Ciclos</span><b id="batC">—</b></div>
+          <div data-tip="Capacidad máxima|Cuánto retiene comparada con su capacidad de fábrica."><span>Salud</span><b id="batS">—</b></div>
+          <div data-tip="Temperatura de las celdas|El calor es lo que más degrada una batería de litio."><span>Temperatura</span><b id="batT">—</b></div>
+        </div>
       </div>
     </div>
   </section>
 
-  <!-- ---------------- ENERGÍA ---------------- -->
-  <section class="panel" data-p="energia">
-    <div class="pcol pcol-1">
-      <div class="head"><svg class="ico"><use href="#i-bolt"/></svg><span class="lbl">Consumo</span>
-        <span class="tag" id="tagPwr">—</span></div>
-      <div class="big" id="wTot">—<span class="u">W</span></div>
-      <div class="rows" style="margin-top:10px">
-        <div id="tipWcpu" data-tip="Potencia del bloque de CPU|Vatios que consumen los núcleos ahora mismo."><span>CPU</span><b id="wCpu">—</b></div>
-        <div id="tipWgpu" data-tip="Potencia del bloque gráfico|Sube con vídeo, juegos o cualquier cosa acelerada."><span>GPU</span><b id="wGpu">—</b></div>
-        <div data-tip="Neural Engine|Núcleos dedicados a aprendizaje automático: dictado, reconocimiento de texto, modelos locales.|<em>0 W significa que ninguna app está usando ML.</em>"><span>Neural Engine</span><b id="wAne">—</b></div>
-        <div data-tip="Frecuencia por cluster|Cada cluster tiene su propio reloj y escala de forma independiente."><span>Frec. E / P</span><b id="freq">—</b></div>
-      </div>
-      <div id="avisoPwr"></div>
+  <section class="modulo" data-m="caudal">
+    <div class="mhead" onclick="expandir('caudal')">
+      <svg class="ico"><use href="#i-flow"/></svg>
+      <span class="lbl">Caudal</span>
+      <span class="tag" id="tagFlujo">—</span>
+      <svg class="chev"><use href="#i-chev"/></svg>
     </div>
-    <div class="pcol pcol-1">
-      <div class="head"><svg class="ico"><use href="#i-bat"/></svg><span class="lbl">Batería</span>
-        <span class="tag" id="tagBat">—</span></div>
-      <div style="display:flex;align-items:baseline;gap:9px">
-        <div class="big" id="batP">—<span class="u">%</span></div>
-        <span class="u n" id="batR"></span>
+    <div class="mbody">
+      <div class="parte principal"
+           data-tip="Tráfico de red|Bytes por segundo por todas las interfaces físicas, excluyendo loopback.|Derivada de los contadores acumulados del sistema.">
+        <div class="lbl" style="margin-bottom:4px">Red</div>
+        <div class="big" style="font-size:23px" id="netIn">—</div>
+        <div class="n" style="font-size:12px;color:var(--dim)" id="netOut">—</div>
+        <canvas id="sparkNet" width="400" height="34" style="margin-top:9px;height:34px"></canvas>
       </div>
-      <div class="bar"><div class="seg" id="barBat" style="width:0"></div></div>
-      <div class="rows">
-        <div data-tip="Flujo de energía|Vatios entrando o saliendo de la batería.|<em>+ está cargando; − se está descargando.</em>"><span>Flujo</span><b id="batW">—</b></div>
-        <div data-tip="Ciclos de carga|Un ciclo equivale a consumir el 100% de la capacidad, aunque sea repartido en días.|Apple estima 1000 ciclos hasta bajar al 80%."><span>Ciclos</span><b id="batC">—</b></div>
-        <div data-tip="Capacidad máxima|Cuánto retiene comparada con su capacidad de fábrica. Baja con los años y sobre todo con el calor."><span>Salud</span><b id="batS">—</b></div>
-        <div data-tip="Temperatura de las celdas|El calor es lo que más degrada una batería de litio."><span>Temperatura</span><b id="batT">—</b></div>
+      <div class="parte extra"
+           data-tip="Actividad de disco|Lectura y escritura sobre el SSD interno.|<em>Tu SSD sostiene varios GB/s: estas cifras rara vez lo rozan.</em>">
+        <div class="lbl" style="margin-bottom:4px">Disco</div>
+        <div class="big" style="font-size:23px" id="dskR">—</div>
+        <div class="n" style="font-size:12px;color:var(--dim)" id="dskW">—</div>
+        <canvas id="sparkDsk" width="400" height="34" style="margin-top:9px;height:34px"></canvas>
       </div>
     </div>
   </section>
 
-  <!-- ---------------- CAUDAL ---------------- -->
-  <section class="panel" data-p="caudal">
-    <div class="pcol pcol-1">
-      <div class="head"><svg class="ico"><use href="#i-flow"/></svg><span class="lbl">Red</span>
-        <span class="tag" id="tagFlujo">—</span></div>
-      <div data-tip="Tráfico de red|Bytes por segundo entrando y saliendo por todas las interfaces físicas, excluyendo loopback.|Calculado como derivada de los contadores del sistema.">
-        <div class="big" style="font-size:26px" id="netIn">—</div>
-        <div class="n" style="font-size:13px;color:var(--dim)" id="netOut">—</div>
-      </div>
-      <canvas id="sparkNet" width="400" height="60" style="margin-top:10px;height:60px"></canvas>
+  <section class="modulo" data-m="procesos">
+    <div class="mhead" onclick="expandir('procesos')">
+      <svg class="ico"><use href="#i-list"/></svg>
+      <span class="lbl">Procesos</span>
+      <span class="tag" id="tagProc">—</span>
+      <svg class="chev"><use href="#i-chev"/></svg>
     </div>
-    <div class="pcol pcol-1">
-      <div class="head"><svg class="ico"><use href="#i-flow"/></svg><span class="lbl">Disco</span></div>
-      <div data-tip="Actividad de disco|Lectura y escritura sobre el SSD interno.|<em>Tu SSD sostiene varios GB/s: estas cifras rara vez lo rozan.</em>">
-        <div class="big" style="font-size:26px" id="dskR">—</div>
-        <div class="n" style="font-size:13px;color:var(--dim)" id="dskW">—</div>
+    <div class="mbody">
+      <div class="parte principal">
+        <div class="lbl" style="margin-bottom:6px" id="tipPorCpu"
+             data-tip="Consumo de CPU|Procesos ordenados por porcentaje de CPU.">Por CPU</div>
+        <table><tbody id="procs"></tbody></table>
       </div>
-      <canvas id="sparkDsk" width="400" height="60" style="margin-top:10px;height:60px"></canvas>
+      <div class="parte extra">
+        <div class="lbl" style="margin-bottom:6px"
+             data-tip="Consumo de memoria|Ordenados por RSS: la memoria física que ocupan ahora.|Es normal que la suma supere la RAM instalada: las librerías compartidas se cuentan en cada proceso.">Por memoria</div>
+        <table><tbody id="procsMem"></tbody></table>
+      </div>
     </div>
   </section>
 
-  <!-- ---------------- PROCESOS ---------------- -->
-  <section class="panel" data-p="procesos">
-    <div class="pcol pcol-1">
-      <div class="head"><svg class="ico"><use href="#i-list"/></svg>
-        <span class="lbl" id="tipPorCpu" data-tip="Consumo de CPU|Procesos ordenados por porcentaje de CPU.">Por CPU</span>
-        <span class="tag" id="tagProc">—</span></div>
-      <table><tbody id="procs"></tbody></table>
+  <section class="modulo" data-m="puertos">
+    <div class="mhead" onclick="expandir('puertos')">
+      <svg class="ico"><use href="#i-net"/></svg>
+      <span class="lbl"
+            data-tip="Puertos en escucha|<b>local</b>: ligado a 127.0.0.1, solo accesible desde este Mac.<br><b>expuesto</b>: alcanzable desde cualquier equipo de tu red.|<em>Sin sudo solo se ven tus procesos.</em>">Puertos</span>
+      <span class="tag" id="tagPort">—</span>
+      <svg class="chev"><use href="#i-chev"/></svg>
     </div>
-    <div class="pcol pcol-1">
-      <div class="head"><svg class="ico"><use href="#i-mem"/></svg>
-        <span class="lbl" data-tip="Consumo de memoria|Procesos ordenados por RSS: la memoria física que ocupan ahora.|Es normal que la suma supere la RAM instalada: las librerías compartidas se cuentan en cada proceso.">Por memoria</span></div>
-      <table><tbody id="procsMem"></tbody></table>
-    </div>
-  </section>
-
-  <!-- ---------------- PUERTOS ---------------- -->
-  <section class="panel" data-p="puertos">
-    <div class="pcol pcol-full">
-      <div class="head"><svg class="ico"><use href="#i-net"/></svg>
-        <span class="lbl" data-tip="Puertos en escucha|<b>local</b>: ligado a 127.0.0.1, solo accesible desde este Mac.<br><b>expuesto</b>: ligado a todas las interfaces, alcanzable desde cualquier equipo de tu red.|<em>Sin sudo solo se ven tus procesos.</em>">Puertos en escucha</span>
-        <span class="tag" id="tagPort">—</span></div>
-      <div id="ports"></div>
+    <div class="mbody">
+      <div class="parte principal"><div id="ports"></div></div>
     </div>
   </section>
 
 </div>
+
 
 <footer>
   <span><svg class="ico" style="width:11px;height:11px;vertical-align:-1px"><use href="#i-srv"/></svg>
@@ -709,41 +733,66 @@ function pintarTemps(ts){
   else tag($('tagTemp'),'max '+mx.toFixed(0)+'°',mx<55?'ok':mx<75?'warn':'crit');
 }
 
-// ---------- carrusel ----------
-const PANELES=[
-  {p:'nucleos', n:'Núcleos'},   {p:'termico',  n:'Térmico'},
-  {p:'memoria', n:'Memoria'},   {p:'gpu',      n:'GPU'},
-  {p:'energia', n:'Energía'},   {p:'caudal',   n:'Caudal'},
-  {p:'procesos',n:'Procesos'},  {p:'puertos',  n:'Puertos'},
-];
-let panelActivo=0;
+// ---------- módulos expandibles ----------
+const MODULOS=['nucleos','termico','memoria','gpu','energia','caudal','procesos','puertos'];
 
-function mostrarPanel(i){
-  panelActivo=(i+PANELES.length)%PANELES.length;
-  const clave=PANELES[panelActivo].p;
-  document.querySelectorAll('.panel').forEach(s=>
-    s.classList.toggle('act', s.dataset.p===clave));
-  document.querySelectorAll('.tab').forEach((t,j)=>
-    t.classList.toggle('act', j===panelActivo));
-  document.querySelectorAll('.vital').forEach(v=>
-    v.classList.toggle('act', v.dataset.panel===clave));
-  try{ localStorage.setItem('panel',clave) }catch(e){}
-  // Los lienzos del panel recién mostrado estaban ocultos y por tanto sin
-  // dimensiones: hay que repintarlos ahora que sí las tienen.
-  repintarLienzos();
+function expandidos(){
+  try{ return new Set(JSON.parse(localStorage.getItem('expandidos')||'[]')) }
+  catch(e){ return new Set() }
 }
-const irPanel=d=>mostrarPanel(panelActivo+d);
+function guardarExpandidos(s){
+  try{ localStorage.setItem('expandidos',JSON.stringify([...s])) }catch(e){}
+}
 
-function montarTabs(){
-  $('tabs').innerHTML=PANELES.map((x,i)=>
-    `<button class="tab" onclick="mostrarPanel(${i})">${x.n}</button>`).join('');
-  let inicial=0;
-  try{
-    const g=localStorage.getItem('panel');
-    const j=PANELES.findIndex(x=>x.p===g);
-    if(j>=0) inicial=j;
-  }catch(e){}
-  mostrarPanel(inicial);
+// Un vital se marca cuando su módulo está expandido.
+function marcarVitales(){
+  const abiertos=new Set([...document.querySelectorAll('.modulo.exp')]
+    .map(m=>m.dataset.m));
+  document.querySelectorAll('.vital').forEach(v=>
+    v.classList.toggle('act', abiertos.has(v.dataset.panel)));
+}
+
+function expandir(clave){
+  const el=document.querySelector(`.modulo[data-m="${clave}"]`);
+  if(!el)return;
+  el.classList.toggle('exp');
+  const s=expandidos();
+  el.classList.contains('exp') ? s.add(clave) : s.delete(clave);
+  guardarExpandidos(s);
+  marcarVitales();
+  // La parte que acaba de aparecer estaba oculta y sus lienzos no tenían
+  // dimensiones; se repintan una vez que el layout se ha asentado.
+  requestAnimationFrame(()=>requestAnimationFrame(repintarLienzos));
+}
+
+// Pulsar un vital expande su módulo y lo trae a la vista.
+function saltarA(clave){
+  const el=document.querySelector(`.modulo[data-m="${clave}"]`);
+  if(!el)return;
+  if(!el.classList.contains('exp')) expandir(clave);
+  el.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+
+function restaurarExpandidos(){
+  const s=expandidos();
+  s.forEach(k=>{
+    const el=document.querySelector(`.modulo[data-m="${k}"]`);
+    if(el) el.classList.add('exp');
+  });
+  marcarVitales();
+  requestAnimationFrame(()=>requestAnimationFrame(repintarLienzos));
+}
+
+function alternarTodos(){
+  const hayCerrado=[...document.querySelectorAll('.modulo')].some(m=>!m.classList.contains('exp'));
+  const s=new Set();
+  document.querySelectorAll('.modulo').forEach(m=>{
+    m.classList.toggle('exp',hayCerrado);
+    if(hayCerrado) s.add(m.dataset.m);
+  });
+  guardarExpandidos(s);
+  marcarVitales();
+  requestAnimationFrame(()=>requestAnimationFrame(repintarLienzos));
 }
 
 // ---------- franja de vitales ----------
@@ -768,10 +817,6 @@ function montarVitales(){
       <span class="vs" id="vs_${v.k}">—</span>
       <canvas id="vc_${v.k}" width="240" height="18"></canvas>
     </div>`).join('');
-}
-function saltarA(clave){
-  const i=PANELES.findIndex(x=>x.p===clave);
-  if(i>=0) mostrarPanel(i);
 }
 function ponVital(k,valor,sub,color){
   const v=$('vv_'+k), s=$('vs_'+k);
@@ -1133,10 +1178,9 @@ addEventListener('keydown',e=>{
   const k=e.key.toLowerCase();
   if(k==='p')pausa(); if(k==='r')control('reiniciar'); if(k==='d')control('detener');
   if(k==='t')alternarTema();
-  if(e.key==='ArrowRight')irPanel(1);
-  if(e.key==='ArrowLeft')irPanel(-1);
-  // 1-9 saltan directo a su panel.
-  if(/^[1-9]$/.test(k)&&+k<=PANELES.length)mostrarPanel(+k-1);
+  // 1-8 expanden o colapsan su módulo; E alterna todos.
+  if(/^[1-8]$/.test(k)&&+k<=MODULOS.length)expandir(MODULOS[+k-1]);
+  if(k==='e')alternarTodos();
 });
 
 // ---------- tooltips ----------
@@ -1183,7 +1227,7 @@ let ultUptime=null;
 setInterval(()=>{ if(ultUptime!=null&&!pausado)$('reloj').textContent=relojMision(++ultUptime) },1000);
 
 montarVitales();
-montarTabs();
+restaurarExpandidos();
 aplicarTema(temaInicial());
 // Los lienzos se dimensionan por CSS; al cambiar el tamaño de la ventana
 // hay que rehacerlos o quedan estirados.
