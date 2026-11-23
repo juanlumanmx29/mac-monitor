@@ -436,12 +436,14 @@
       <button class="cerrar" onclick="alternar('gpu')" title="Cerrar">×</button>
     </div>
     <div class="dbody">
+        <!-- Lo rellena pintarFrecuenciasGpu; sigue oculto sin powermetrics. -->
+        <div id="gpuEstados" style="margin-bottom:13px" hidden></div>
         <div class="gauge">
           <svg viewBox="0 0 100 100"><circle class="pista" cx="50" cy="50" r="41"/>
             <circle class="val" id="gGpu" cx="50" cy="50" r="41" stroke="var(--violet)" stroke-dasharray="0 999"/></svg>
           <div>
             <div class="big" id="gpuTot">—<span class="u">%</span></div>
-            <div class="lbl" style="margin-top:6px" id="gpuNucleos">—</div>
+            <div class="lbl" style="margin-top:6px" id="gpuNucleos" data-tip="Núcleos de GPU|macOS no publica la carga de cada núcleo: el firmware de la GPU reparte el trabajo por su cuenta.">—</div>
             <div class="lbl" style="margin-top:3px">vram <b class="n" id="vram">—</b></div>
           </div>
         </div>
@@ -745,6 +747,49 @@ function pintarCores(cpu){
   if($('promP'))$('promP').textContent='prom '+(E.length?cpu.p_promedio:cpu.total).toFixed(0)+'%';
 }
 
+// Celda de frecuencia de GPU: misma fórmula de opacidad que celdaEstilo,
+// pero en el violeta de la GPU y sin semáforo, porque pasar el 90% del
+// tiempo en una frecuencia no es ninguna alarma.
+function celdaFrecuencia(v){
+  const fondo = 0.07 + (v/100)*0.55;
+  const borde = 0.16 + (v/100)*0.5;
+  return `background:rgba(var(--rgb-violet),${fondo.toFixed(3)});`
+       + `border-color:rgba(var(--rgb-violet),${borde.toFixed(3)});`
+       + `color:${v<8?'var(--dim2)':'var(--txt)'}`;
+}
+
+// macOS no publica la carga de cada núcleo de la GPU; lo que sí da
+// powermetrics es el tiempo que pasa en cada estado de frecuencia.
+function pintarFrecuenciasGpu(estados,activa){
+  const c=$('gpuEstados');
+  // El número de estados depende del chip; solo se reconstruye si cambia.
+  if(c.dataset.n!=estados.length){
+    const tip='Tiempo por frecuencia|Porcentaje del último segundo que la GPU pasó en '
+      +'cada estado de frecuencia. El resto estuvo en reposo.'
+      +'|<em>macOS no publica la carga de cada núcleo de la GPU: el firmware reparte '
+      +'el trabajo entre ellos por su cuenta. Requiere powermetrics (sudo).</em>';
+    c.innerHTML=`
+      <div class="cluster">
+        <div class="cluster-head" data-tip="${tip.replace(/"/g,'&quot;')}">
+          <span class="nom" style="color:var(--violet)">Frecuencia · ${estados.length} estados</span>
+          <span class="prom" id="promGf">—</span>
+        </div>
+        <div class="celdas" style="grid-template-columns:repeat(${columnas(estados.length)},1fr)">
+          ${estados.map((e,i)=>`<div class="cel" id="gf${i}"><i>${Math.round(e[0])}</i><span id="gfv${i}">—</span></div>`).join('')}
+        </div>
+      </div>`;
+    c.dataset.n=estados.length;
+  }
+
+  estados.forEach(([mhz,pct],i)=>{
+    const cel=$('gf'+i);
+    cel.style.cssText=celdaFrecuencia(pct);
+    cel.dataset.tip=`${Math.round(mhz)} MHz|${pct.toFixed(1)}% del último segundo a esta frecuencia`;
+    $('gfv'+i).textContent=pct.toFixed(0);
+  });
+  $('promGf').textContent=activa!=null?'activa '+activa.toFixed(0)+'%':'—';
+}
+
 function pintarFans(fans){
   const c=$('fans');
   if(!fans||!fans.length){c.innerHTML='<div class="lbl">sin datos</div>';return}
@@ -1007,8 +1052,13 @@ function aplicarEquipo(eq){
   if(eq.macos) partes.push(`macos ${eq.macos}`);
   $('sub').textContent=partes.join(' · ');
 
-  if($('gpuNucleos'))
+  if($('gpuNucleos')){
     $('gpuNucleos').textContent=eq.gpu_nucleos?eq.gpu_nucleos+' núcleos':'';
+    if(eq.gpu_nucleos)
+      $('gpuNucleos').dataset.tip=`${eq.gpu_nucleos} núcleos de GPU|macOS no publica la carga `
+        +`de cada uno: el firmware de la GPU reparte el trabajo entre ellos por su cuenta.`
+        +`|<em>Lo más cercano que sí se mide es el tiempo por frecuencia, arriba (requiere sudo).</em>`;
+  }
 
   const n=eq.cpu_total;
   $('tipCargaCpu').dataset.tip=`Carga total de CPU|Promedio de los ${n} núcleos.`
@@ -1142,6 +1192,10 @@ async function tick(){
       tag($('tagPwr'),'sin sudo','warn');
       $('avisoPwr').innerHTML=`<div class="aviso">Sin datos de consumo: ${p.motivo||'powermetrics no disponible'}. Inicia con el archivo .command para habilitarlos.</div>`;
     }
+    // Sin sudo, en Intel o si cambia el formato no hay desglose: se oculta.
+    const conEstados=!!(p.disponible&&p.gpu_estados?.length);
+    $('gpuEstados').hidden=!conEstados;
+    if(conEstados) pintarFrecuenciasGpu(p.gpu_estados,p.gpu_uso);
 
     const filaProc=(x,destacar)=>{
       const tp=(`${x.nombre}|pid <b>${x.pid}</b><br>CPU <b>${x.cpu.toFixed(1)}%</b>`

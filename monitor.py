@@ -371,6 +371,14 @@ class SensorPotencia:
             v = num(r"^GPU HW active residency:\s+([\d.]+)%")
             if v is not None:
                 parcial["gpu_uso"] = v
+                # macOS no publica la carga por nucleo de la GPU; lo mas
+                # cercano es el desglose del tiempo por estado de frecuencia
+                # que sigue entre parentesis. Lista y no dict: conserva el
+                # orden y tolera frecuencias repetidas.
+                estados = re.findall(r"([\d.]+)\s*MHz:\s*([\d.]+)%", linea)
+                if estados:
+                    parcial["gpu_estados"] = [[float(f), float(p)]
+                                              for f, p in estados]
 
             m = re.search(r"pressure level:\s*(\w+)", linea)
             if m:

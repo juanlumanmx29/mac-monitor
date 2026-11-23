@@ -35,7 +35,7 @@ Which cards you left selected is remembered between sessions.
 | Card | Summary | Detail panel | Needs sudo |
 |---|---|---|---|
 | **CPU** | Load, core count | Per-core heat grid split into efficiency and performance clusters, gauge, processes, threads, clock | no |
-| **GPU** | Utilization, VRAM | Gauge, renderer, tiler, clock, residency | no |
+| **GPU** | Utilization, VRAM | Gauge, renderer, tiler, clock, residency, time per frequency state (sudo) | no |
 | **RAM** | Percentage, GB used | App / wired / compressed / cached breakdown, swap, pressure, 60 s history | no |
 | **Thermal** | Hottest reading and which family | Up to 8 sensor families (P-cores, E-cores, GPU, VRM, chassis, battery, SSD, intake) | no |
 | **Fans** | RPM, state | Per-fan RPM with icons spinning proportionally to real speed, plus range | no |
@@ -175,7 +175,7 @@ Qué tarjetas dejaste activas se recuerda entre sesiones.
 | Tarjeta | Resumen | Panel de detalle | Requiere sudo |
 |---|---|---|---|
 | **CPU** | Carga, número de núcleos | Rejilla de calor por núcleo separada en clusters de eficiencia y rendimiento, medidor, procesos, hilos, frecuencia | no |
-| **GPU** | Utilización, VRAM | Medidor, renderizador, teselador, frecuencia, residencia | no |
+| **GPU** | Utilización, VRAM | Medidor, renderizador, teselador, frecuencia, residencia, tiempo por estado de frecuencia (sudo) | no |
 | **RAM** | Porcentaje, GB usados | Desglose apps / anclada / comprimida / caché, swap, presión, histórico de 60 s | no |
 | **Térmico** | Lectura más alta y de qué familia | Hasta 8 familias de sensores (núcleos P y E, GPU, reguladores, chasis, batería, SSD, entrada de aire) | no |
 | **Vent** | RPM, estado | RPM por ventilador, con iconos que giran a velocidad proporcional a la real, y su rango | no |
