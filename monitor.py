@@ -7,9 +7,8 @@ que es lo que trae macOS de fabrica. Toda la informacion del equipo
 (nucleos, memoria, GPU, sensores) se detecta en ejecucion, asi que el
 mismo codigo sirve en cualquier Mac.
 
-Codigos de salida:
-    0   detencion limpia (boton Detener)
-    42  reinicio solicitado (el lanzador .command lo relanza)
+Se arranca, reinicia y detiene desde el lanzador .command (el estandar del
+skill `command`): al servidor solo le toca cerrar bien ante SIGTERM.
 """
 
 import ctypes
@@ -26,11 +25,11 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import smc as modulo_smc
+import vigilancia as modulo_vigilancia
 
-PUERTO = 8765
+# Si se cambia, hay que cambiar tambien PUERTO en el lanzador.
+PUERTO = int(os.environ.get("MONITOR_PUERTO", "8765"))
 RAIZ = os.path.dirname(os.path.abspath(__file__))
-
-CODIGO_REINICIO = 42
 
 
 # --------------------------------------------------------------------------
@@ -702,6 +701,7 @@ class EstadoServidor:
             "powermetrics_motivo": sensor_potencia.datos.get("motivo", ""),
             "smc": sensor_smc.disponible,
             "smc_motivo": sensor_smc.motivo,
+            "vigilancia": vigilante.datos.get("disponible", False),
             "sensores": sum(len(v) for v in sensor_smc.claves_temp.values()),
             "python": "%d.%d.%d" % sys.version_info[:3],
         }
@@ -762,8 +762,17 @@ cache_gpu = CacheSimple(leer_gpu, 1.0)
 cache_sistema = CacheSimple(leer_sistema, 3.0)
 caudal_red = Caudal(_bytes_red)
 caudal_disco = Caudal(_bytes_disco)
+vigilante = modulo_vigilancia.Vigilante()
 estado = EstadoServidor()
-accion_salida = {"codigo": 0}
+
+
+def _con_ficha(filas):
+    """
+    Copia de cada fila con la ficha del proceso: nombre completo, guion,
+    tiempo de vida, padre y si es huerfano. Copia y no edicion en sitio: la
+    lista de puertos sale de una cache compartida entre peticiones.
+    """
+    return [dict(f, info=vigilante.ficha(f["pid"])) for f in filas]
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -804,13 +813,14 @@ class Handler(BaseHTTPRequestHandler):
                     "potencia": sensor_potencia.datos,
                     "ventiladores": sensor_smc.ventiladores(),
                     "temperaturas": sensor_smc.temperaturas(),
-                    "puertos": cache_puertos.obtener(),
+                    "puertos": _con_ficha(cache_puertos.obtener()),
                     "gpu": cache_gpu.obtener(),
                     "sistema": cache_sistema.obtener(),
                     "red": caudal_red.leer(),
                     "disco": caudal_disco.leer(),
-                    "procesos": procs_cpu,
-                    "procesos_mem": procs_mem,
+                    "procesos": _con_ficha(procs_cpu),
+                    "procesos_mem": _con_ficha(procs_mem),
+                    "vigilancia": vigilante.instantanea(),
                     "equipo": EQUIPO,
                 }
                 estado.muestras += 1
@@ -825,44 +835,8 @@ class Handler(BaseHTTPRequestHandler):
 
         self._responder(404, json.dumps({"error": "no encontrado"}))
 
-    def do_POST(self):
-        if self.path != "/api/control":
-            self._responder(404, json.dumps({"error": "no encontrado"}))
-            return
-
-        largo = int(self.headers.get("Content-Length", 0) or 0)
-        try:
-            cuerpo = json.loads(self.rfile.read(largo) or b"{}")
-        except Exception:
-            cuerpo = {}
-        accion = cuerpo.get("accion")
-
-        if accion == "detener":
-            accion_salida["codigo"] = 0
-            self._responder(200, json.dumps({"ok": True, "accion": "detener"}))
-            threading.Thread(target=_apagar, daemon=True).start()
-            return
-
-        if accion == "reiniciar":
-            accion_salida["codigo"] = CODIGO_REINICIO
-            self._responder(200, json.dumps({"ok": True, "accion": "reiniciar"}))
-            threading.Thread(target=_apagar, daemon=True).start()
-            return
-
-        self._responder(400, json.dumps({"error": "accion desconocida"}))
-
 
 servidor = None
-
-
-def _apagar():
-    time.sleep(0.4)  # deja que la respuesta HTTP salga antes de cerrar
-    sensor_potencia.detener()
-    if servidor:
-        servidor.shutdown()
-
-
-ARCHIVO_PID = os.path.join(RAIZ, ".monitor.pid")
 
 
 def _al_recibir_senal(numero, _frame):
@@ -873,7 +847,7 @@ def _al_recibir_senal(numero, _frame):
     queda colgando y, peor, powermetrics sobrevive como huerfano de root.
     SIGHUP es el que manda Terminal al cerrar su ventana.
     """
-    accion_salida["codigo"] = 0
+    vigilante.detener()
     sensor_potencia.detener()
     if servidor:
         threading.Thread(target=servidor.shutdown, daemon=True).start()
@@ -887,14 +861,7 @@ def main():
     servidor = ThreadingHTTPServer(("127.0.0.1", PUERTO), Handler)
     servidor.daemon_threads = True
 
-    try:
-        with open(ARCHIVO_PID, "w") as f:
-            f.write(str(os.getpid()))
-    except Exception:
-        pass
-
-    # El lanzador imprime el aviso completo cuando el puerto ya responde;
-    # aqui basta una linea discreta para quien ejecute el script a mano.
+    # Una linea discreta, que el lanzador deja en su registro (tecla l).
     # flush explicito: con la salida redirigida, Python usa buffer de bloque
     # y la linea no aparece hasta que el proceso termina.
     print("  servidor escuchando en 127.0.0.1:%d (pid %d)"
@@ -904,14 +871,9 @@ def main():
     except KeyboardInterrupt:
         print("\nInterrumpido.")
     finally:
+        vigilante.detener()
         sensor_potencia.detener()
         servidor.server_close()
-        try:
-            if os.path.exists(ARCHIVO_PID):
-                os.remove(ARCHIVO_PID)
-        except Exception:
-            pass
-    sys.exit(accion_salida["codigo"])
 
 
 if __name__ == "__main__":

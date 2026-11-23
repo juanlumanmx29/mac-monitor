@@ -20,19 +20,26 @@ privileges is power draw in watts, and the dashboard works fine without it.
 
 ### The interface
 
-Two zones. On top, eleven **selector cards**, one per aspect of the machine.
-Each shows the current value, a line of context and a 60-second sparkline, so
-the whole state reads at a glance without clicking anything.
+Three rows of cards, all the same size: **Machine** (CPU, GPU, RAM, thermal,
+fans, power, battery), **Activity** (network, disk, processes, energy, ports,
+sleep) and **Watch** (forgotten and ghost processes, one card per alert). Each
+card shows the current value, a line of context, two extra figures and a
+60-second sparkline. The width is computed so a whole number of cards fits
+each row and every edge lines up; the height splits the screen between the
+three rows.
 
-Click a card and it lights up as selected, opening its **detail panel in the
-grid below** — three per row, wrapping into new rows as you open more. Each
-newly opened panel appears after the ones already there. Close one, by
-clicking its card again or the × in its header, and the rest reflow to fill
-the gap.
+A row that does not fit becomes a carousel: it advances on its own every few
+seconds, and you can move it with the ‹ › arrows, the trackpad or the mouse
+wheel. It holds still while the pointer is over it, for a few seconds after
+you move it by hand, while a detail is open and while the tab is hidden. `E`
+turns rotation off and the choice is remembered; if the system asks for
+reduced motion, it starts off.
 
-Which cards you left selected is remembered between sessions.
+Click a card to open its **detail in a floating window**. `←` `→` move to the
+neighbouring card; `Esc` or a click outside closes it. A detail can be linked
+directly, e.g. `http://localhost:8765/#vigilancia`.
 
-| Card | Summary | Detail panel | Needs sudo |
+| Card | Summary | Detail | Needs sudo |
 |---|---|---|---|
 | **CPU** | Load, core count | Per-core heat grid split into efficiency and performance clusters, gauge, processes, threads, clock | no |
 | **GPU** | Utilization, VRAM | Gauge, renderer, tiler, clock, residency, time per frequency state (sudo) | no |
@@ -43,11 +50,40 @@ Which cards you left selected is remembered between sessions.
 | **Battery** | Charge, state | Flow in watts, cycles, health, cell temperature | no |
 | **Network** | Throughput | In / out per second with its own chart | no |
 | **Disk** | Throughput | Read / write per second with its own chart | no |
-| **Processes** | Total, top consumer | Ranked by CPU and by memory, side by side | no |
-| **Ports** | Count, how many exposed | Listening TCP sockets flagged **local** vs **exposed** | partial |
+| **Processes** | Total, top consumer | Ranked by CPU and by memory, with lifetime, parent, full command and an orphan flag | no |
+| **Energy** | Top energy consumer | Energy impact per process, the figure in Activity Monitor's Energy tab | no |
+| **Ports** | Count, how many exposed | Listening TCP sockets flagged **local** or **exposed**, with what each known service is, how long it has been open and its parent | partial |
+| **Sleep** | How many things keep the Mac awake | Who prevents sleep or display sleep, for how long and on whose behalf | no |
+| **Watch** | Active alerts | Forgotten, runaway, zombie and suspended processes, with the command to stop them | no |
 
 Everything is auto-detected at runtime: core counts, cluster topology, RAM,
 GPU cores, sensor layout. The same code adapts to any Mac.
+
+### Forgotten and ghost processes
+
+A background thread reads the process table every 5 seconds, even when nobody
+has the dashboard open. It exists because of a real case: a shell left behind
+by a closed Terminal window spent two days burning two cores, unnoticed.
+
+| Rule | Level | When |
+|---|---|---|
+| **Forgotten** | warning | A process of yours with no terminal window (neither it nor any of its parents has one) that no app and no launchd job keeps alive. Most likely the window that launched it was closed and it kept running. |
+| **Forgotten, burning CPU** | critical | The same, holding 20 % of a core or more for 2 minutes. |
+| **Runaway** | warning | Any process holding 90 % of a core for 10 minutes. |
+| **Zombie** | warning | Finished, but its parent never collected it. Grouped by parent. |
+| **Suspended** | info | Stopped with Ctrl+Z or SIGSTOP for more than 10 minutes. |
+| **Sleep** | warning | Something has prevented sleep for over 30 minutes while on battery. |
+
+Alerts appear as cards in the Watch row, as a counter in the header and in the
+tab title. Critical ones also raise a **macOS notification**, once per
+process; start the server with `MONITOR_NOTIFICAR=0` to turn that off. Each
+alert can be silenced from its detail. Silencing applies to the program (rule
+plus command line), so it survives a restart under a new PID, and it is kept
+in that browser only.
+
+Programs that detach from their terminal on purpose (`tmux`, `screen`,
+`ssh-agent`, `gpg-agent` and similar) are never flagged as forgotten. The
+thresholds live at the top of `vigilancia.py`.
 
 ### Requirements
 
@@ -68,20 +104,40 @@ chmod +x "Iniciar Monitor.command"
 Then **double-click `Iniciar Monitor.command`**.
 
 It asks for your admin password once, to enable the power sensors. Press
-`Ctrl+C` at that prompt to skip it — everything else still works.
+`Ctrl+C` at that prompt to skip it — everything else still works. The server
+starts and the browser opens at `http://localhost:8765`.
 
-The browser opens at `http://localhost:8765`.
-
-### Keyboard
+The Terminal window stays open as the server's control panel, one key each,
+no Enter:
 
 | Key | Action |
 |---|---|
-| `1`–`9` | Select or deselect that card (the first nine; Processes and Ports are click-only) |
-| `E` | Select or deselect every card at once |
+| `a` | Start |
+| `r` | Restart |
+| `d` | Stop |
+| `n` | Open the browser |
+| `l` | Show the server log |
+| `q` | Stop and close |
+
+**Closing that window stops the server** and everything it started. Opening
+the launcher again while it is running just brings the existing window to the
+front.
+
+### Keyboard
+
+The dashboard has no buttons; hover the status indicator in the header for a
+reminder of these keys.
+
+| Key | Action |
+|---|---|
+| `1`–`9` | Open that card's detail (the first nine) |
+| `A` | Open the Watch detail |
+| `←` `→` | Previous / next detail while one is open |
+| `Esc` | Close the detail |
+| `Tab`, `Enter` | Move between cards and open one |
+| `E` | Turn automatic rotation of the rows on or off |
 | `T` | Toggle light / dark theme |
 | `P` | Pause / resume refresh |
-| `R` | Restart the server |
-| `D` | Stop and quit |
 
 The theme follows your system preference on first run. Once you pick one, your
 choice wins and is remembered.
@@ -90,7 +146,9 @@ choice wins and is remembered.
 
 The server binds to `127.0.0.1` only — it is not reachable from your network.
 There is no telemetry, no analytics, no outbound request of any kind. Nothing
-is written to disk except a PID file that is deleted on exit.
+is written to disk except the launcher's log and lock file in `/tmp`. Notifications
+are shown locally through `osascript`, and preferences (theme, rotation,
+silenced alerts) live in the browser's local storage.
 
 ### How it works
 
@@ -113,6 +171,13 @@ is written to disk except a PID file that is deleted on exit.
   it per sample would cost about a second each time.
 - **Network and disk** — cumulative counters from `netstat -ib` and the
   `IOBlockStorageDriver` registry, differentiated into bytes per second.
+- **Watch** — `ps` (two calls, because both the executable path and the full
+  command line can contain spaces), `launchctl list` to know which processes
+  launchd keeps alive, `pmset -g assertions` for sleep blockers and
+  `top -o power` for energy impact. Sustained CPU comes from snapshots of
+  cumulative CPU time taken every 30 s, not from `ps`'s decaying percentage.
+  Energy is sampled only while the dashboard is open, since `top` itself
+  costs some CPU.
 
 ### Notes and gotchas
 
@@ -125,21 +190,25 @@ is written to disk except a PID file that is deleted on exit.
   is struggling.
 - **Listening ports are incomplete without sudo.** `lsof` only reveals your
   own processes otherwise; system daemons stay hidden.
-- Change the port by editing `PUERTO` in `monitor.py`.
+- Change the port with the `MONITOR_PUERTO` environment variable, and set the
+  same number in `PUERTO` inside the launcher.
 
 ### Files
 
 ```
 monitor.py               HTTP server and metric collection
 smc.py                   fan and thermistor access through IOKit
+vigilancia.py            forgotten, ghost and runaway process watch
 dashboard.html           interface
-Iniciar Monitor.command  double-click launcher
+Iniciar Monitor.command  double-click launcher and server control window
 ```
 
-`smc.py` runs standalone for a quick sensor dump:
+`smc.py` and `vigilancia.py` run standalone, for a quick sensor dump and a
+quick process check:
 
 ```bash
 python3 smc.py
+python3 vigilancia.py          # add --json for the raw block
 ```
 
 ### License
@@ -159,36 +228,72 @@ necesita privilegios es el consumo en vatios, y el panel funciona igual sin eso.
 
 ### La interfaz
 
-Dos zonas. Arriba, once **tarjetas selectoras**, una por cada aspecto del
-equipo. Cada una muestra el valor actual, una línea de contexto y un
-minigráfico de 60 segundos, de modo que el estado completo se lee de un
-vistazo sin pulsar nada.
+Tres filas de tarjetas, todas del mismo tamaño: **Equipo** (CPU, GPU, RAM,
+térmico, ventiladores, consumo, batería), **Actividad** (red, disco, procesos,
+energía, puertos, reposo) y **Vigilancia** (procesos olvidados y fantasmas,
+una tarjeta por alerta). Cada tarjeta muestra el valor actual, una línea de
+contexto, dos cifras extra y un minigráfico de 60 segundos. El ancho se
+calcula para que en cada fila quepa un número entero de tarjetas y todos los
+bordes calcen; el alto reparte la pantalla entre las tres filas.
 
-Al pulsar una tarjeta se marca como activa y abre su **panel de detalle en la
-rejilla de abajo** —tres por fila, formando filas nuevas a medida que abres
-más—. Cada panel nuevo aparece detrás de los que ya estaban. Al cerrar uno,
-pulsando otra vez su tarjeta o la × de su cabecera, los demás se recolocan
-para ocupar el hueco.
+Una fila que no cabe se convierte en carrusel: avanza sola cada pocos
+segundos, y se mueve con las flechas ‹ ›, el trackpad o la rueda del ratón. Se
+queda quieta con el cursor encima, unos segundos después de moverla a mano,
+con un detalle abierto y con la pestaña oculta. `E` apaga el giro y la
+elección se recuerda; si el sistema pide reducir el movimiento, arranca
+apagado.
 
-Qué tarjetas dejaste activas se recuerda entre sesiones.
+Al pulsar una tarjeta se abre su **detalle en una ventana flotante**. `←` `→`
+pasan a la tarjeta vecina; `Esc` o un clic fuera la cierran. Un detalle se
+puede enlazar directamente, por ejemplo `http://localhost:8765/#vigilancia`.
 
-| Tarjeta | Resumen | Panel de detalle | Requiere sudo |
+| Tarjeta | Resumen | Detalle | Requiere sudo |
 |---|---|---|---|
 | **CPU** | Carga, número de núcleos | Rejilla de calor por núcleo separada en clusters de eficiencia y rendimiento, medidor, procesos, hilos, frecuencia | no |
 | **GPU** | Utilización, VRAM | Medidor, renderizador, teselador, frecuencia, residencia, tiempo por estado de frecuencia (sudo) | no |
 | **RAM** | Porcentaje, GB usados | Desglose apps / anclada / comprimida / caché, swap, presión, histórico de 60 s | no |
 | **Térmico** | Lectura más alta y de qué familia | Hasta 8 familias de sensores (núcleos P y E, GPU, reguladores, chasis, batería, SSD, entrada de aire) | no |
-| **Vent** | RPM, estado | RPM por ventilador, con iconos que giran a velocidad proporcional a la real, y su rango | no |
+| **Ventiladores** | RPM, estado | RPM por ventilador, con iconos que giran a velocidad proporcional a la real, y su rango | no |
 | **Consumo** | Vatios totales | CPU, GPU y Neural Engine por separado, frecuencia por cluster | **sí** |
 | **Batería** | Carga, estado | Flujo en vatios, ciclos, salud, temperatura de celdas | no |
 | **Red** | Caudal | Entrada y salida por segundo, con gráfico propio | no |
 | **Disco** | Caudal | Lectura y escritura por segundo, con gráfico propio | no |
-| **Procesos** | Total y quién lidera | Ordenados por CPU y por memoria, lado a lado | no |
-| **Puertos** | Cantidad y cuántos expuestos | Sockets TCP en escucha, marcados **local** o **expuesto** | parcial |
+| **Procesos** | Total y quién lidera | Ordenados por CPU y por memoria, con tiempo de vida, padre, comando completo y marca de huérfano | no |
+| **Energía** | Quién más consume | Impacto energético por proceso, la cifra de la pestaña Energía del Monitor de Actividad | no |
+| **Puertos** | Cantidad y cuántos expuestos | Sockets TCP en escucha, marcados **local** o **expuesto**, con qué es cada servicio conocido, cuánto lleva abierto y su padre | parcial |
+| **Reposo** | Cuántas cosas mantienen despierto el Mac | Quién impide dormir o apagar la pantalla, desde cuándo y en nombre de quién | no |
+| **Vigilancia** | Alertas activas | Procesos olvidados, desbocados, zombis y suspendidos, con el comando para detenerlos | no |
 
 Todo se detecta en ejecución: número de núcleos, topología de clusters, RAM,
 núcleos de GPU y disposición de sensores. El mismo código se adapta a
 cualquier Mac.
+
+### Procesos olvidados y fantasmas
+
+Un hilo aparte lee la tabla de procesos cada 5 segundos, aunque nadie tenga el
+panel abierto. Existe por un caso real: una shell que quedó de una ventana de
+Terminal cerrada pasó dos días consumiendo dos núcleos sin que nadie lo notara.
+
+| Regla | Nivel | Cuándo |
+|---|---|---|
+| **Olvidado** | aviso | Un proceso tuyo sin ventana de terminal (ni él ni ninguno de sus padres la tiene) que ninguna app ni trabajo de launchd mantiene vivo. Lo más probable es que se cerró la ventana que lo lanzó y siguió corriendo. |
+| **Olvidado y consumiendo CPU** | crítico | Lo mismo, con 20 % de un núcleo o más durante 2 minutos. |
+| **Desbocado** | aviso | Cualquier proceso con 90 % de un núcleo durante 10 minutos. |
+| **Zombi** | aviso | Terminó, pero su padre nunca lo recogió. Se agrupan por padre. |
+| **Suspendido** | info | Detenido con Ctrl+Z o SIGSTOP desde hace más de 10 minutos. |
+| **Reposo** | aviso | Algo impide dormir desde hace más de 30 minutos con el equipo en batería. |
+
+Las alertas aparecen como tarjetas en la fila Vigilancia, como contador en la
+cabecera y en el título de la pestaña. Las críticas además lanzan una
+**notificación de macOS**, una por proceso; para desactivarlas, arranca el
+servidor con `MONITOR_NOTIFICAR=0`. Cada alerta se puede silenciar desde su
+detalle. El silencio se aplica al programa (regla más línea de comando), así
+que sobrevive a que se relance con otro PID, y se guarda solo en ese
+navegador.
+
+Los programas que se separan de su terminal a propósito (`tmux`, `screen`,
+`ssh-agent`, `gpg-agent` y similares) nunca se marcan como olvidados. Los
+umbrales están al principio de `vigilancia.py`.
 
 ### Requisitos
 
@@ -211,19 +316,38 @@ Luego **doble clic en `Iniciar Monitor.command`**.
 
 Pide la contraseña de administrador una vez, para habilitar los sensores de
 consumo. Con `Ctrl+C` en ese prompt lo omites: todo lo demás sigue funcionando.
+El servidor arranca y el navegador se abre en `http://localhost:8765`.
 
-El navegador se abre en `http://localhost:8765`.
-
-### Teclas
+La ventana de Terminal queda abierta como panel de control del servidor, con
+una tecla por acción y sin Enter:
 
 | Tecla | Acción |
 |---|---|
-| `1`–`9` | Activa o desactiva esa tarjeta (las primeras nueve; Procesos y Puertos solo con clic) |
-| `E` | Activa o desactiva todas a la vez |
+| `a` | Arranca |
+| `r` | Reinicia |
+| `d` | Detiene |
+| `n` | Abre el navegador |
+| `l` | Muestra el registro del servidor |
+| `q` | Detiene y cierra |
+
+**Cerrar esa ventana detiene el servidor** y todo lo que arrancó. Si vuelves a
+abrir el lanzador mientras corre, solo trae al frente la ventana que ya existe.
+
+### Teclas
+
+El panel no tiene botones; al pasar el cursor por el indicador de estado de la
+cabecera aparece un recordatorio de estas teclas.
+
+| Tecla | Acción |
+|---|---|
+| `1`–`9` | Abre el detalle de esa tarjeta (las nueve primeras) |
+| `A` | Abre el detalle de Vigilancia |
+| `←` `→` | Detalle anterior / siguiente mientras hay uno abierto |
+| `Esc` | Cierra el detalle |
+| `Tab`, `Enter` | Recorre las tarjetas y abre una |
+| `E` | Enciende o apaga el giro automático de las filas |
 | `T` | Alterna tema claro / oscuro |
 | `P` | Pausa / reanuda el refresco |
-| `R` | Reinicia el servidor |
-| `D` | Detiene y sale |
 
 El tema sigue la preferencia del sistema la primera vez. En cuanto eliges uno,
 tu elección manda y se recuerda.
@@ -232,7 +356,9 @@ tu elección manda y se recuerda.
 
 El servidor escucha solo en `127.0.0.1`, así que no es alcanzable desde tu red.
 No hay telemetría, ni analítica, ni ninguna petición saliente. Lo único que se
-escribe a disco es un archivo de PID que se borra al salir.
+escribe a disco es el registro y el candado del lanzador, en `/tmp`. Las notificaciones
+se muestran en local con `osascript`, y las preferencias (tema, giro, alertas
+silenciadas) viven en el almacenamiento local del navegador.
 
 ### Cómo funciona
 
@@ -255,6 +381,13 @@ escribe a disco es un archivo de PID que se borra al salir.
   muestra costaría cerca de un segundo cada vez.
 - **Red y disco** — contadores acumulados de `netstat -ib` y del registro
   `IOBlockStorageDriver`, derivados a bytes por segundo.
+- **Vigilancia** — `ps` (dos llamadas, porque tanto la ruta del ejecutable
+  como la línea de comando pueden llevar espacios), `launchctl list` para
+  saber qué procesos mantiene vivos launchd, `pmset -g assertions` para los
+  bloqueos de reposo y `top -o power` para el impacto energético. La CPU
+  sostenida sale de fotos de la CPU acumulada tomadas cada 30 s, no del
+  porcentaje con decaimiento de `ps`. La energía solo se mide mientras el
+  panel está abierto, porque `top` también gasta CPU.
 
 ### Detalles que conviene saber
 
@@ -267,21 +400,25 @@ escribe a disco es un archivo de PID que se borra al salir.
   esté sufriendo.
 - **Los puertos en escucha quedan incompletos sin sudo.** `lsof` solo revela
   tus propios procesos; los demonios del sistema no aparecen.
-- El puerto se cambia editando `PUERTO` en `monitor.py`.
+- El puerto se cambia con la variable de entorno `MONITOR_PUERTO`, poniendo el
+  mismo número en `PUERTO` dentro del lanzador.
 
 ### Archivos
 
 ```
 monitor.py               servidor HTTP y recolección de métricas
 smc.py                   acceso a ventiladores y termistores vía IOKit
+vigilancia.py            procesos olvidados, fantasmas y desbocados
 dashboard.html           interfaz
-Iniciar Monitor.command  lanzador de doble clic
+Iniciar Monitor.command  lanzador de doble clic y ventana de control del servidor
 ```
 
-`smc.py` se ejecuta por sí solo para un volcado rápido de sensores:
+`smc.py` y `vigilancia.py` se ejecutan por sí solos, para un volcado rápido de
+sensores y una revisión rápida de procesos:
 
 ```bash
 python3 smc.py
+python3 vigilancia.py          # con --json, el bloque en bruto
 ```
 
 ### Licencia
