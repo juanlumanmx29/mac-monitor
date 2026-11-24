@@ -1,17 +1,3 @@
-# Estado en ejecución / runtime state
-.monitor.pid
-
-# macOS
+.build/
+build.noindex/
 .DS_Store
-._*
-.Spotlight-V100
-.Trashes
-
-# Python
-__pycache__/
-*.py[cod]
-
-# Editores / editors
-.vscode/
-.idea/
-*.swp

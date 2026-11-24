@@ -1,190 +1,178 @@
-# mac-monitor
+# Telemetría
 
-Panel de telemetría local para macOS. Servidor HTTP en `127.0.0.1:8765` que
-sirve un dashboard leído en el navegador. **Repositorio público**:
-https://github.com/juanlumanmx29/mac-monitor
+Repositorio `mac-monitor`. Desde la versión 2 es una app nativa de macOS
+(AppKit + SwiftUI): icono con cifras en la barra de menú, desplegable con el
+resumen y ventana con el detalle de cada módulo. Sin servidor, sin sudo y sin
+dependencias. Ver `README.md` para el uso. La versión 1 (servidor Python y
+panel web) está en la etiqueta `v1-python`.
 
-> Este archivo se publica junto al código. No incluir rutas personales,
-> nombres de usuario, direcciones IP, seriales ni nada específico de un
-> equipo concreto.
+> **Repositorio público**: https://github.com/juanlumanmx29/mac-monitor.
+> Nada de lo que se escriba aquí puede contener rutas personales, nombres de
+> usuario, direcciones IP, seriales ni datos de un equipo concreto (tampoco en
+> ejemplos ni capturas).
 
 ## Arquitectura
 
 ```
-monitor.py               servidor HTTP + recolección de métricas
-smc.py                   ventiladores y termistores vía IOKit (importado por monitor.py)
-vigilancia.py            procesos olvidados, fantasmas y desbocados (hilo propio, importado por monitor.py)
-dashboard.html           interfaz completa: HTML + CSS + JS en un solo archivo
-Iniciar Monitor.command  lanzador estándar del skill `command` (versión 2.2)
+Sources/Telemetria/
+  main.swift            arranque, instancia única, modos --volcar / --medir / --icono / --capturas / --pagina / --fondo
+  Motor.swift           qué se lee y cada cuánto (visible 1 s, fondo 5 s, Demanda por página); Foto, Historial, Preferencias
+  Sistema.swift         sysctl, procesos auxiliares, IOKit, reloj monótono
+  Equipo.swift          topología detectada al arrancar, CPU por núcleo, memoria
+  SMC.swift             ventiladores, termistores, potencia del equipo (PSTR)
+  IOReport.swift        vatios de CPU/GPU/ANE/DRAM, frecuencias por cluster y por núcleo, estados de la GPU, presión térmica
+  Hardware.swift        GPU, batería, red, disco
+  Procesos.swift        tabla de procesos (kinfo + libproc + ps para ajenos), launchd
+  Servicios.swift       puertos (libproc), reposo (IOPM), energía (top), total de hilos
+  Vigilancia.swift      reglas: olvidado, desbocado, zombi, detenido, reposo
+  Ventanas.swift        app responsable de un proceso, para traer su ventana al frente
+  Modelo.swift          Modulo, Interfaz (estado observable y acciones), Resumen de cada módulo
+  Tema.swift            paleta dinámica (oscuro/claro), Rotulo, Insignia
+  Componentes.swift     Panel, FilaDato, Cifra, Anillo, barras, Grafico, Celda, Helice, Reticula
+  VistaPrincipal.swift  NavigationSplitView, barra lateral, pie con el gasto propio, marco de página
+  Resumen.swift         página de tarjetas
+  DetallesEquipo.swift, DetallesActividad.swift   una vista por módulo
+  Ventana.swift         NSWindow (se destruye al cerrar) y menú principal con atajos
+  BarraMenu.swift       NSStatusItem, menú y desplegable
+  Notificaciones.swift  UNUserNotificationCenter, con osascript de respaldo
+  Logo.swift            icono de la app (Core Graphics)
+  Volcado.swift, Capturas.swift   diagnóstico
 ```
-
-El servidor expone `GET /` (el dashboard) y `GET /api/metrics` (JSON con todo
-el estado). No hay endpoint de control: arrancar, reiniciar y detener se hace
-desde la ventana del lanzador (teclas `a` `r` `d` `n` `l` `q`).
-En `/api/metrics`, el bloque `vigilancia` trae alertas, bloqueos de reposo y
-energía, y cada fila de `procesos`, `procesos_mem` y `puertos` lleva `info`
-con la ficha del proceso (nombre completo, guion, vida, padre, huérfano).
-
-La interfaz son tres filas de carrusel con tarjetas del mismo tamaño; el
-detalle de cada una se abre en una ventana flotante (`.modal`), una a la vez.
 
 ## Reglas duras
 
-1. **Sin dependencias.** Solo la stdlib del Python 3.9 que trae macOS. Nada
-   de `pip install`, Homebrew ni Node. Si algo parece necesitar una
-   librería, casi siempre hay una vía por `ctypes`, `ioreg` o `sysctl`.
-2. **Nada del hardware va fijo en el código.** Núcleos, clusters, RAM,
-   GPU y sensores se detectan en ejecución y viajan al frontend en
-   `payload.equipo`. Escribir "14 núcleos" o "M4 Pro" rompe el proyecto en
-   cualquier otro Mac.
-3. **Idioma.** Identificadores y comentarios en español **sin acentos**
-   (`nucleos`, `bateria`, `disponible`). Los acentos solo en cadenas que ve
-   el usuario. En JS y HTML sí se acentúa con normalidad.
-4. **Degradar, no romper.** Cada fuente de datos puede fallar: sin sudo no
-   hay vatios, un Mac Intel no tiene clusters híbridos, un equipo sin
-   ventiladores devuelve lista vacía. Siempre hay que seguir funcionando.
+1. **Solo Command Line Tools, sin Xcode.** Las macros de SwiftUI no compilan:
+   nada de `@State`, `@Entry`, `@Observable` ni `#Preview`. En su lugar
+   `private let x = State(initialValue:)` con `x.wrappedValue` y
+   `x.projectedValue`, y `ObservableObject` + `@Published`.
+2. **Sin dependencias y sin sudo.** Todo se lee como usuario normal. Si algo
+   parece exigir root, casi siempre hay una vía por IOKit, IOReport, libproc o
+   sysctl; si no la hay, se degrada (como los puertos de otros usuarios).
+3. **Nada del hardware va fijo en el código.** Núcleos, clusters, RAM, GPU,
+   sensores y tablas de frecuencia se detectan en ejecución.
+4. **Degradar, no romper.** Cada fuente puede faltar (Mac Intel, Mac de
+   escritorio, API privada que cambie): la vista muestra «—» o «sin datos».
+5. **Idioma.** Identificadores y comentarios en español sin acentos; acentos
+   solo en los textos que ve el usuario.
+6. **Gasto mínimo.** Con la ventana cerrada solo corren la vigilancia y lo que
+   muestre la barra de menú, cada 5 s. Antes de añadir una lectura, decidir en
+   qué régimen y con qué cadencia va, y medir con `--medir`.
 
 ## Trampas ya encontradas
 
-Cada una costó una sesión de depuración. No reintroducirlas.
+### Fuentes de datos
 
-### Frontend
+- **macOS 27 filtra `net.inet.tcp.pcblist_n`** para cualquier proceso que no
+  sea de Apple y para sus hijos, también lanzado como .app: `netstat -anv`
+  lanzado desde la app devuelve la lista vacía (desde una terminal funciona,
+  lo que despista). Los puertos salen de libproc (`PROC_PIDLISTFDS` +
+  `PROC_PIDFDSOCKETINFO`), como `lsof`: solo procesos propios.
+- **`PROC_PIDTASKINFO` y `proc_pid_rusage` fallan con los procesos de otros
+  usuarios.** Su CPU y memoria salen de `ps` (setuid root), solo para esos
+  pids (`-p`), cada 5 s si la página muestra procesos y cada 30 s si no. Cada
+  medida guarda su instante (`tsCPU`): las fotos de la vigilancia mezclan
+  cadencias y la CPU sostenida se calcula con esos instantes.
+- **Los tiempos de CPU de libproc vienen en unidades de Mach**, no en
+  nanosegundos: en Apple Silicon la base es 125/3 (`Sys.segundos(mach:)`).
+- **`devname` cuesta ~0,6 ms por llamada**: se cachea por dispositivo. Sin
+  caché eran 15 ms por ciclo.
+- **`KERN_PROCARGS2`** se lee con un búfer de `kern.argmax` reutilizado y se
+  cachea por (pid, inicio). `proc_pidpath` funciona para todos los procesos.
+- **La estructura del SMC se arma byte a byte** (80 bytes, desplazamientos de
+  C). Una struct de Swift pone el campo siguiente en el relleno final de la
+  struct anidada `keyInfo` y desalinea todo. El byte 40 es el resultado del
+  SMC: distinto de 0 es error aunque IOKit devuelva éxito.
+- **El descubrimiento del SMC (~3000 claves) se guarda en las preferencias**
+  por modelo y versión del sistema; solo se recorre la primera vez.
+- **IOReport es privado**: se enlaza con `dlsym` y se suscribe solo a los
+  canales usados. El subgrupo «CPU Complex Performance States» trae también
+  `ECPM`, `PCPM_IDLE`…: solo cuentan `ECPU`, `PCPU`, `PCPU1`.
+- **Las tablas de frecuencia están en el nodo `pmgr`** (`voltage-states1-sram`
+  E, `5-sram` P, `9` GPU): pares de 32 bits (frecuencia, voltaje), en Hz hasta
+  M3 y en kHz desde M4. La de la GPU empieza con un 0 que no es un estado. Si
+  el número de estados no cuadra se busca otra tabla plausible o se omiten los
+  MHz.
+- **Con batería, IOReport congela la energía de CPU, DRAM y ANE** (comprobado
+  con intervalos de 1 a 10 s y en todos los grupos: solo avanza `GPU Energy`).
+  Si la CPU está activa y su contador no se mueve, esos bloques quedan en nil
+  (`bloquesCongelados`) y la página lo explica. El total (`PSTR`) sí funciona.
+  El SMC tiene más claves de potencia (`PHPC`, `PMVC`, `PZC0`…) pero sin
+  significado documentado: no usarlas sin verificarlas.
+- **Dos lecturas de IOReport o de la CPU con menos de 0,3 s** dan ruido (pasa
+  al cambiar la visibilidad, que fuerza un ciclo inmediato): se repite la
+  última.
+- **La batería en macOS 27** ya no publica `Temperature` ni `DesignCapacity`
+  en el nivel superior: van dentro de `BatteryData` o faltan. La temperatura
+  sale de la familia `TB` del SMC. La salud sale de `system_profiler` (cada
+  6 h, aparte): la proporción del registro da un punto menos que Ajustes.
+- **Consumo del equipo**: con batería, lo que entrega la batería (amperaje ×
+  voltaje); enchufado, `SystemLoad` de `PowerTelemetryData` (la carga del
+  sistema, sin lo que va a la batería); sin batería, `PSTR`. `PSTR` del SMC
+  se queda corto frente a los otros dos (7,6 W frente a 22,3 W de descarga,
+  18,8 frente a 28,2 W enchufado): no cuenta todos los componentes. Se
+  muestra aparte como referencia.
+- **Red**: contadores de 64 bits (`NET_RT_IFLIST2`), solo interfaces `en*`.
+  Los `utun` de una VPN repetirían el mismo tráfico.
+- **`top -o power` cuesta medio segundo de CPU.** Solo se lanza si la página
+  lo pide (`Demanda`): cada 30 s con Energía abierta, cada 2 min en el
+  resumen. Su cabecera trae el total de hilos; si no corre, `top -l 1` cada
+  30 s con la página de CPU.
+- **La app responsable de un proceso** sale de
+  `responsibility_get_pid_responsible_for_pid` (privada, `dlsym`): un
+  `WebContent` lleva a Safari y un `node` de la terminal integrada a VS Code.
+  Si falta, se sube por los padres.
 
-- **Un `<span>` es `display:inline` y el navegador ignora su `width`.** Las
-  barras de progreso necesitan `display:block` explícito o se quedan vacías
-  sin dar ningún error.
-- **Reescribir `innerHTML` de un elemento destruye los ids de sus hijos.**
-  Si el código luego busca ese hijo, recibe `null` y la excepción aborta el
-  resto del ciclo de render, dejando media interfaz en blanco. Ningún
-  contenedor cuyo `innerHTML` se reescriba debe contener ids.
-- **Un canvas oculto no tiene dimensiones.** Al mostrarlo hay que repintar
-  tras **dos** `requestAnimationFrame`: el primero aplica el cambio de
-  clase, el segundo garantiza que el layout ya está calculado.
-- **Los canvas no heredan variables CSS.** Los colores se leen con
-  `cssVar()` / `rgbVar()` en el momento de pintar, y hay que repintar al
-  cambiar de tema. Por eso los colores viven como tripletas RGB en `:root`.
-- **`tag()` acepta `null` a propósito.** Algunas etiquetas solo existen
-  dentro de un panel de detalle que puede estar cerrado.
-- **El `catch` del ciclo distingue fallo de red de error de render.**
-  Tratarlos igual disfraza los bugs de JavaScript como desconexiones.
-- **`hidden` no oculta un `<button>`.** La regla `button{display:flex}` pisa
-  el estilo del navegador; por eso existe `[hidden]{display:none!important}`.
-- **`overflow:hidden` en `.det` rompe la cabecera fija del detalle.** Convierte
-  la sección en contenedor de desplazamiento y `position:sticky` deja de
-  funcionar.
-- **Las tarjetas de alerta se rehacen por `innerHTML`** dentro de
-  `#alertasFila` (con `display:contents`, para que cuenten como tarjetas del
-  carril): nada de ids dentro. Solo se reconstruyen cuando cambia su firma; si
-  se rehacen cada segundo, un clic cae sobre un botón que ya no existe.
-- **Todo texto que venga de un proceso se escapa** con `esc()`, y dentro de un
-  `data-tip` con `escTip()` + `attr()`. Un proceso puede ponerse el nombre que
-  quiera, y en los tooltips la barra `|` separa párrafos.
-- **El lienzo de cada tarjeta se redimensiona por atributo**, no por CSS: su
-  alto depende de la pantalla y estirarlo por CSS deforma la línea.
+### Interfaz
 
-### Backend
+- **La ventana se destruye al cerrarse** (vista de SwiftUI incluida) y la app
+  vuelve a `.accessory`. Mantenerla oculta seguiría recalculando vistas.
+- **En fondo la `Foto` es parcial** (`completa = false`): `Interfaz.recibir`
+  la ignora y solo la usa la barra de menú.
+- **El título de la barra de menú es AppKit**, no SwiftUI, y solo se reasigna
+  si cambia el texto: cada cambio redibuja las réplicas del ítem (~0,4 % de CPU
+  a 1 s).
+- **Los gráficos solo siguen el cursor si son interactivos** (`Lector`): en
+  las miniaturas el seguimiento era trabajo sin uso.
+- **La hélice gira con `CABasicAnimation`** en el servidor de render. Una
+  animación de SwiftUI o un `TimelineView` gastaría CPU por cuadro.
+- **El eje x de los gráficos es tiempo real**: los huecos de más de 12 s
+  (ventana cerrada) se dibujan como cortes.
+- **`ImageRenderer` no dibuja `Table` ni vistas de AppKit**: `--capturas`
+  usa la ventana real, transparente e ignorando el ratón. La memoria en ese
+  modo no es representativa (los mapas de bits se acumulan).
+- **La tabla de procesos va aislada** (`TablaDeProcesos`, `.equatable()`) y
+  sus filas se renuevan cada 3 s (`procesosTabla`): redibujar ~1000 filas cada
+  segundo costaba 7 % de CPU, más que el resto de la ventana junta. Sin
+  tooltips por fila.
+- **Asunto abierto**: al montar la tabla de procesos, AppKit avisa una vez de
+  «reentrant operation in its NSTableView delegate». No viene de los bindings
+  (comprobado: no se llaman al montar) ni sale con la tabla de puertos; parece
+  interno del `Table` de SwiftUI con muchas filas. Vigilar si en otra versión
+  de macOS pasa a ser un assert.
+- **Sin menú Edición, el buscador no acepta ⌘C ni ⌘V**: `Menus` lo incluye.
+- **Los textos de procesos van en `Text`**, que no interpreta marcado: no hace
+  falta escapar nada (en el panel web sí).
 
-- **`powermetrics` corre como root** porque se lanza con `sudo`. Un
-  `terminate()` desde el proceso padre sin privilegios devuelve `EPERM` y
-  lo deja vivo: hay que matarlo con `sudo -n kill`.
-- **El descubrimiento del SMC recorre más de 3000 claves** y tarda cerca de
-  un segundo. Corre en un hilo aparte para que el socket abra de inmediato;
-  hacerlo en línea provoca que el navegador se abra antes que el servidor.
-- **`InstantAmperage` de `ioreg` llega como entero sin signo de 64 bits.**
-  Al descargar es negativo: sin revertir el complemento a dos salen
-  consumos absurdos.
-- **Los termistores de los núcleos P devuelven 0 con el cluster apagado.**
-  Sus claves se conservan igualmente en el descubrimiento, o la familia
-  desaparecería y reaparecería del panel de forma intermitente.
-- **`ps -o thcount` es sintaxis de Linux.** El `ps` BSD de macOS no la
-  tiene; los totales de procesos e hilos salen de la cabecera de `top`.
-- **`lsof` sin sudo solo ve los procesos del propio usuario.** El código lo
-  intenta con `sudo -n` primero y cae a la versión sin privilegios.
-- Las llamadas costosas van cacheadas (`CacheSimple`, `CachePuertos`) para
-  que la latencia de `/api/metrics` se mantenga por debajo de ~100 ms.
+## Verificación
 
-### Vigilancia
-
-- **`comm` y `args` de `ps` pueden llevar espacios.** Cada uno tiene que ir
-  en la última columna, así que son dos llamadas a `ps` unidas por pid.
-- **El python de las Command Line Tools vive dentro de un `Python.app`.**
-  Contarlo como app haría invisibles todos los guiones de Python olvidados.
-- **Un proceso cuenta como olvidado solo si nadie lo mantiene**: subiendo por
-  sus padres hasta launchd no aparece ninguna terminal, ninguna app, ningún
-  trabajo de `launchctl list` ni ninguna ruta del sistema. Sin la lista de
-  launchd la regla no se evalúa: sin ella, Redis o cualquier agente de
-  usuario saldrían como huérfanos.
-- **La CPU sostenida sale de fotos de CPU acumulada cada 30 s**, no del
-  `%cpu` de `ps`, que decae. El promedio de toda la vida solo se usa como
-  respaldo al arrancar, y solo si la vida es al menos diez veces la ventana.
-- **Las notificaciones pasan los textos como argumentos de `osascript`**,
-  nunca dentro del código AppleScript, y se lanzan en un hilo con `run()`: un
-  `Popen` sin esperar deja zombis del propio monitor, que la vigilancia
-  detectaría.
-- **`top -o power` cuesta casi medio segundo de CPU.** Solo se mide cada 30 s
-  y mientras alguien consultó el panel en el último minuto.
-
-### Ciclo de vida
-
-- **El lanzador es la plantilla del skill `command`, igual que el de los
-  demás proyectos.** No se edita a mano: se regenera desde la plantilla
-  conservando sus variables. Lo único propio es `ANTES`, que pide sudo una
-  vez (con un renovador del ticket cada 50 s) y abre el navegador cuando el
-  puerto responde. Ctrl+C en la contraseña solo la omite.
-- **Se versiona aquí, a diferencia de los demás proyectos** (la regla 2 del
-  skill): es la puerta de entrada del proyecto público y no lleva rutas ni
-  nada de este equipo; `APP` se calcula desde su propia ubicación.
-- **El servidor solo tiene que cerrar bien ante `SIGTERM`.** Al detener, el
-  lanzador manda TERM a todo el árbol y KILL a los 5 s. El manejador cierra
-  el socket, para la vigilancia y mata `powermetrics` con `sudo -n kill`
-  (es de root); si eso falla, `powermetrics` muere igual al romperse su
-  tubería con Python.
-- El puerto sale de `MONITOR_PUERTO` (8765 por defecto) y tiene que
-  coincidir con `PUERTO` en el lanzador.
-
-## Verificación antes de publicar
-
-No basta con que el servidor arranque. Comprobar siempre:
+No basta con que compile:
 
 ```bash
-# Sintaxis
-python3 -c "import ast;ast.parse(open('monitor.py').read())"
-python3 -c "import ast;ast.parse(open('smc.py').read())"
-python3 -c "import ast;ast.parse(open('vigilancia.py').read())"
-bash -n "Iniciar Monitor.command"
+./construir.sh
+F="build.noindex/Telemetría.app/Contents/MacOS/Telemetria"
 
-# Sensores y vigilancia sin levantar el servidor
-python3 smc.py
-python3 vigilancia.py
+# Datos reales de cada fuente; con TELEMETRIA_PERFIL=1, ms por tramo del ciclo
+$F --volcar
 
-# El servidor responde y entrega datos completos
-python3 monitor.py &
-curl -s --retry 20 --retry-connrefused --retry-delay 1 http://localhost:8765/api/metrics | python3 -m json.tool | head -40
+# Gasto del motor sin interfaz, en cada régimen
+$F --medir 40 fondo
+$F --medir 40 visible
+
+# Todas las páginas y el desplegable en PNG (revisarlos), en oscuro y claro
+$F --capturas /ruta/temporal/capturas
+$F --capturas /ruta/temporal/capturas claro
+
+# La app real: CPU con `ps -o time= -p <pid>` en dos instantes y memoria con
+# `vmmap -summary <pid>` (Physical footprint), con la ventana cerrada (--fondo)
+# y abierta en una página (--pagina resumen|cpu|procesos...)
 ```
-
-Para el JavaScript, macOS trae un motor que permite validarlo de verdad
-sin navegador (`new Function` parsea sin ejecutar):
-
-```bash
-python3 -c "import re;open('/tmp/p.js','w').write(re.search(r'<script>(.*?)</script>',open('dashboard.html').read(),re.S).group(1))"
-osascript -l JavaScript -e 'function run(){var s=ObjC.unwrap($.NSString.stringWithContentsOfFileEncodingError("/tmp/p.js",4,null));try{new Function(s);return "OK"}catch(e){return "ERROR: "+e.message}}'
-```
-
-Y comprobar la coherencia del DOM: que ningún `$('id')` apunte a un
-elemento inexistente, que no haya ids duplicados y que toda función
-invocada desde un atributo `on*` esté definida.
-
-## Cuidado al tocar
-
-- `dashboard.html` supera las mil líneas. Editar con `sed` o scripts
-  puntuales en vez de reescribir el archivo entero.
-- El `.command` lleva un espacio en el nombre: siempre entre comillas.
-- Al mover marcado entre zonas, verificar ids duplicados: es el fallo más
-  probable de esas refactorizaciones.
-- Una tarjeta nueva necesita las cuatro piezas: la tarjeta en su fila (ids
-  `vv_`, `vs_`, `vx_`, `vc_` + clave corta), su `<section class="det">`, su
-  entrada en `MODULOS` (fija el orden de las teclas 1-9) y sus claves en
-  `UNIDAD`, `H` y `pintarVitales`.
-- Para revisar el render sin tocar la pantalla: Chrome headless con un
-  perfil temporal y `--screenshot`, apuntando a `/#clave` para abrir un
-  detalle.
