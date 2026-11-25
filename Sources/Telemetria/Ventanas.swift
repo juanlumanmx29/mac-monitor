@@ -1,4 +1,5 @@
 import AppKit
+import SwiftUI
 
 /// La app con ventanas de la que depende un proceso, para traerla al frente.
 ///
@@ -37,5 +38,17 @@ enum Ventanas {
         if app.isHidden { app.unhide() }
         NSApp.yieldActivation(to: app)
         return app.activate(from: NSRunningApplication.current, options: [.activateAllWindows])
+    }
+}
+
+extension Ventanas {
+    /// Vista de SwiftUI para el contenido de una ventana. Solo impone el tamaño
+    /// minimo: con las opciones por defecto, el tamaño ideal del contenido
+    /// redimensiona la ventana, y la tabla de procesos pide el alto de todas
+    /// sus filas (la ventana crecia a casi 4000 puntos).
+    static func anfitrion<V: View>(_ vista: V) -> NSHostingView<V> {
+        let h = NSHostingView(rootView: vista)
+        h.sizingOptions = []
+        return h
     }
 }

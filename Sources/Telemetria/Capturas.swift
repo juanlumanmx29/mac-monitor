@@ -33,12 +33,16 @@ enum Capturas {
         ventana.isReleasedWhenClosed = false
         ventana.alphaValue = 0
         ventana.ignoresMouseEvents = true
-        ventana.contentView = NSHostingView(rootView: VistaPrincipal(ui: ui))
+        ventana.contentView = Ventanas.anfitrion(VistaPrincipal(ui: ui))
         ventana.orderFrontRegardless()
 
         for m in Modulo.allCases {
             ui.seleccion = m
-            if m == .procesos, let p = ui.foto.procesos.first(where: { $0.propio }) { ui.procesosElegidos = [p.pid] }
+            // En Procesos se elige un proceso de macOS conocido, para ver su ficha.
+            if m == .procesos, let p = ui.foto.procesos.first(where: { $0.nombre == "corespotlightd" })
+                ?? ui.foto.procesos.first(where: { $0.propio }) {
+                ui.procesosElegidos = [p.pid]
+            }
             let (f, h) = motor.cicloSincrono(visible: true)
             ui.recibir(f, h)
             esperar(0.7)
@@ -85,7 +89,7 @@ enum Capturas {
         ventana.level = .floating
         ventana.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
         ventana.ignoresMouseEvents = true
-        ventana.contentView = NSHostingView(rootView: VistaPrincipal(ui: ui))
+        ventana.contentView = Ventanas.anfitrion(VistaPrincipal(ui: ui))
         ventana.orderFrontRegardless()
         func cpu() -> Double {
             var r = rusage()

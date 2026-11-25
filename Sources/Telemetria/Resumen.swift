@@ -141,7 +141,7 @@ struct TarjetaAlerta: View {
         .overlay(alignment: .leading) {
             RoundedRectangle(cornerRadius: 2).fill(Tema.color(a.nivel)).frame(width: 3).padding(.vertical, 10)
         }
-        .help("\(a.titulo)\n\n\(a.motivo)")
+        .help("\(a.titulo)\n\n\(ui.descripcion(a).map { $0.texto + "\n\n" } ?? "")\(a.motivo)")
     }
 }
 

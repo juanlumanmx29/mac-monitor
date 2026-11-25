@@ -190,6 +190,23 @@ final class Interfaz: ObservableObject {
         Ventanas.app(de: pid, tabla: foto.tabla)
     }
 
+    /// Que es el proceso y que pasa si se termina. Para la propia app no hay
+    /// "auxiliar de": solo se usa la app responsable si es otro proceso.
+    func descripcion(pid: Int32, nombre: String, ruta: String) -> Descripcion? {
+        let a = app(de: pid)
+        return Conocidos.describir(nombre: nombre, ruta: ruta, app: a?.processIdentifier == pid ? nil : a)
+    }
+
+    func descripcion(_ p: Proceso) -> Descripcion? {
+        descripcion(pid: p.pid, nombre: p.nombre, ruta: p.ruta)
+    }
+
+    func descripcion(_ a: Alerta) -> Descripcion? {
+        if let p = foto.tabla[a.pid] { return descripcion(p) }
+        let ruta = a.args.split(separator: " ").first.map(String.init) ?? ""
+        return descripcion(pid: a.pid, nombre: a.nombre, ruta: ruta)
+    }
+
     func irAVentana(_ pid: Int32) {
         guard let a = app(de: pid) else {
             NSSound.beep()
@@ -207,7 +224,16 @@ final class Interfaz: ObservableObject {
     func terminar(_ pid: Int32, forzar: Bool = false) {
         let p = foto.tabla[pid]
         let nombre = p?.etiqueta ?? "pid \(pid)"
+        let d = p.flatMap { descripcion($0) }
         let alerta = NSAlert()
+        if let d, d.riesgo == .peligroso {
+            alerta.messageText = "No conviene terminar «\(nombre)»"
+            alerta.informativeText = d.texto
+            alerta.alertStyle = .critical
+            alerta.addButton(withTitle: "Entendido")
+            alerta.runModal()
+            return
+        }
         if let p, !p.propio {
             alerta.messageText = "«\(nombre)» pertenece a \(p.usuario)"
             alerta.informativeText = "Terminarlo requiere privilegios de administrador. Puedes copiar el comando y ejecutarlo en una terminal."
@@ -217,9 +243,10 @@ final class Interfaz: ObservableObject {
             return
         }
         alerta.messageText = forzar ? "¿Forzar el cierre de «\(nombre)»?" : "¿Terminar «\(nombre)»?"
-        alerta.informativeText = forzar
+        alerta.informativeText = (forzar
             ? "Se envía SIGKILL al pid \(pid): se cierra de inmediato, sin guardar nada."
-            : "Se envía SIGTERM al pid \(pid): el proceso puede cerrar ordenadamente."
+            : "Se envía SIGTERM al pid \(pid): el proceso puede cerrar ordenadamente.")
+            + (d?.riesgo == .relanza ? "\n\nEs un proceso de macOS: el sistema lo volverá a lanzar enseguida, así que terminarlo no suele servir de nada." : "")
         alerta.alertStyle = forzar ? .critical : .warning
         alerta.addButton(withTitle: forzar ? "Forzar cierre" : "Terminar")
         alerta.addButton(withTitle: "Cancelar")

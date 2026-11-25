@@ -9,6 +9,38 @@ extension Proceso {
     var hilosOrden: Int { hilos ?? -1 }
 }
 
+// MARK: - Que es
+
+/// «¿Qué es esto?»: descripcion del proceso, de donde viene y si sirve de
+/// algo terminarlo.
+struct FichaQueEs: View {
+    let descripcion: Descripcion
+
+    var body: some View {
+        let d = descripcion
+        let sistema = d.origen == "macOS"
+        HStack(alignment: .top, spacing: 9) {
+            Image(systemName: sistema ? "apple.logo" : "square.on.square")
+                .font(.system(size: 13)).foregroundStyle(Tema.tenue).frame(width: 16)
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 6) {
+                    Insignia(sistema ? "proceso de macOS" : "auxiliar de \(d.origen)", .info)
+                    if d.riesgo == .peligroso { Insignia("no terminar", .critico) }
+                    if d.riesgo == .relanza { Insignia("se relanza solo", .neutro) }
+                }
+                // Sin fixedSize vertical: en la pagina de Procesos (no desplazable)
+                // hacia que la tabla pidiera el alto de todas sus filas.
+                Text(d.texto + (d.consecuencia.map { " " + $0 } ?? ""))
+                    .font(.system(size: 11.5)).foregroundStyle(Tema.texto)
+                    .lineLimit(4)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(9)
+        .background(Tema.panel2, in: RoundedRectangle(cornerRadius: 6))
+    }
+}
+
 // MARK: - Procesos
 
 struct DetalleProcesos: View {
@@ -54,6 +86,7 @@ struct DetalleProcesos: View {
                 }
                 TablaDeProcesos(filas: filas, elegidos: ui.procesosElegidos, orden: ui.ordenProcesos, ui: ui)
                     .equatable()
+                    .frame(minHeight: 160, maxHeight: .infinity)
                 if ui.procesosElegidos.count == 1, let pid = ui.procesosElegidos.first, let p = f.tabla[pid] {
                     InspectorProceso(proceso: p, ui: ui)
                 } else {
@@ -144,8 +177,9 @@ struct MenuProceso: View {
                 Button("Ir a la ventana de \(app.localizedName ?? "la app")") { Ventanas.traer(app) }
                 Divider()
             }
-            Button("Terminar") { ui.terminar(pid) }
-            Button("Forzar cierre") { ui.terminar(pid, forzar: true) }
+            let peligroso = p.flatMap { ui.descripcion($0) }?.riesgo == .peligroso
+            Button("Terminar") { ui.terminar(pid) }.disabled(peligroso)
+            Button("Forzar cierre") { ui.terminar(pid, forzar: true) }.disabled(peligroso)
             Divider()
             Button("Mostrar en Finder") { ui.mostrarEnFinder(p?.ruta ?? "") }.disabled(!(p?.ruta.hasPrefix("/") ?? false))
             Button("Copiar «kill \(pid)»") { ui.copiar("kill \(pid)") }
@@ -177,6 +211,7 @@ struct InspectorProceso: View {
                     .padding(7)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(Tema.panel2, in: RoundedRectangle(cornerRadius: 5))
+                if let d = ui.descripcion(p) { FichaQueEs(descripcion: d) }
                 HStack(spacing: 14) {
                     dato("CPU", Formato.decimal(p.pcpu, 1) + " %")
                     dato("memoria", Formato.mb(p.rss))
@@ -211,8 +246,10 @@ struct InspectorProceso: View {
                         }
                         .help("Trae al frente la app de la que depende este proceso. También con doble clic en la tabla.")
                     }
-                    Button("Terminar") { ui.terminar(p.pid) }
-                    Button("Forzar cierre") { ui.terminar(p.pid, forzar: true) }
+                    if ui.descripcion(p)?.riesgo != .peligroso {
+                        Button("Terminar") { ui.terminar(p.pid) }
+                        Button("Forzar cierre") { ui.terminar(p.pid, forzar: true) }
+                    }
                     Button("Mostrar en Finder") { ui.mostrarEnFinder(p.ruta) }.disabled(!p.ruta.hasPrefix("/"))
                     Button("Copiar comando") { ui.copiar(p.args) }
                     Spacer()
@@ -547,6 +584,7 @@ struct TarjetaAlertaCompleta: View {
         let (v, u) = valorAlerta(a)
         let puertos = ui.foto.puertos.filter { $0.pid == a.pid }
         let resaltada = ui.alertaResaltada == a.id
+        let queEs = ui.descripcion(a)
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
                 Insignia(a.nivel.nombre, Tono(a.nivel))
@@ -555,6 +593,7 @@ struct TarjetaAlertaCompleta: View {
                 Text(v + u).font(Tema.numero(18, .medium)).foregroundStyle(Tema.color(a.nivel))
             }
             Text(a.etiqueta).font(.system(size: 12, weight: .medium)).foregroundStyle(Tema.cian)
+            if let d = queEs { FichaQueEs(descripcion: d) }
             Text(a.motivo).font(.system(size: 11.5)).foregroundStyle(Tema.tenue).fixedSize(horizontal: false, vertical: true)
             HStack(spacing: 12) {
                 dato("pid", "\(a.pid)")
@@ -575,7 +614,7 @@ struct TarjetaAlertaCompleta: View {
                     .background(Tema.panel2, in: RoundedRectangle(cornerRadius: 5))
             }
             HStack(spacing: 8) {
-                if a.regla != .zombi {
+                if a.regla != .zombi && queEs?.riesgo != .peligroso {
                     Button("Terminar") { ui.terminar(a.pid) }
                 }
                 Button("Copiar «\(a.comando)»") { ui.copiar(a.comando) }

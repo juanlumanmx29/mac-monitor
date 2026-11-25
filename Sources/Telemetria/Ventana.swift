@@ -41,7 +41,7 @@ final class ControladorVentana: NSObject, NSWindowDelegate {
         w.minSize = NSSize(width: 940, height: 620)
         w.isReleasedWhenClosed = false
         w.backgroundColor = Tema.nsDinamico(0x05080d, 0xeef1f6)
-        w.contentView = NSHostingView(rootView: VistaPrincipal(ui: ui))
+        w.contentView = Ventanas.anfitrion(VistaPrincipal(ui: ui))
         if !w.setFrameUsingName("Principal") { w.center() }
         w.setFrameAutosaveName("Principal")
         w.delegate = self

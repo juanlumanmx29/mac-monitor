@@ -25,7 +25,8 @@ Sources/Telemetria/
   Procesos.swift        tabla de procesos (kinfo + libproc + ps para ajenos), launchd
   Servicios.swift       puertos (libproc), reposo (IOPM), energía (top), total de hilos
   Vigilancia.swift      reglas: olvidado, desbocado, zombi, detenido, reposo
-  Ventanas.swift        app responsable de un proceso, para traer su ventana al frente
+  Ventanas.swift        app responsable de un proceso (traer su ventana al frente), anfitrion de SwiftUI
+  Conocidos.swift       que es cada proceso de macOS conocido y si sirve terminarlo
   Modelo.swift          Modulo, Interfaz (estado observable y acciones), Resumen de cada módulo
   Tema.swift            paleta dinámica (oscuro/claro), Rotulo, Insignia
   Componentes.swift     Panel, FilaDato, Cifra, Anillo, barras, Grafico, Celda, Helice, Reticula
@@ -117,6 +118,11 @@ Sources/Telemetria/
   lo pide (`Demanda`): cada 30 s con Energía abierta, cada 2 min en el
   resumen. Su cabecera trae el total de hilos; si no corre, `top -l 1` cada
   30 s con la página de CPU.
+- **«¿Qué es esto?»** (`Conocidos.swift`): catálogo de procesos genéricos de
+  macOS con qué hacen y si terminarlos sirve (`relanza`) o es peligroso
+  (WindowServer cierra la sesión, kernel_task no se puede). Lo que no está
+  en el catálogo se describe por su ruta de sistema o por la app de la que
+  depende. Con riesgo `peligroso` no se ofrece Terminar.
 - **La app responsable de un proceso** sale de
   `responsibility_get_pid_responsible_for_pid` (privada, `dlsym`): un
   `WebContent` lleva a Safari y un `node` de la terminal integrada a VS Code.
@@ -124,6 +130,15 @@ Sources/Telemetria/
 
 ### Interfaz
 
+- **`NSHostingView` de la ventana con `sizingOptions = []`**
+  (`Ventanas.anfitrion`): el contenido no redimensiona la ventana; el mínimo
+  lo fija `minSize`. Con las opciones por defecto, si una página pide un alto
+  enorme la ventana crece con ella (llegó a casi 4000 puntos). El desplegable
+  sí usa el tamaño del contenido.
+- **Nada de `.fixedSize(vertical: true)` en páginas no desplazables**
+  (Procesos, Puertos): hace que SwiftUI pida a la `Table` su alto ideal, el de
+  todas las filas, y la página se desborda. La tabla lleva además
+  `.frame(minHeight:maxHeight: .infinity)`.
 - **La ventana se destruye al cerrarse** (vista de SwiftUI incluida) y la app
   vuelve a `.accessory`. Mantenerla oculta seguiría recalculando vistas.
 - **En fondo la `Foto` es parcial** (`completa = false`): `Interfaz.recibir`

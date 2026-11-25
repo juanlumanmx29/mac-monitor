@@ -55,6 +55,11 @@ pasar el cursor.
   ofrece copiar el `sudo kill`.
 - **Clic** en un proceso abre su ficha: comando completo, cadena de padres
   (cada uno se puede abrir), puertos en los que escucha y alertas.
+- **¿Qué es esto?** La ficha y las alertas explican qué hace cada proceso
+  conocido de macOS (Spotlight, Time Machine, Fotos, `kernel_task`,
+  WindowServer…) y si terminarlo sirve: muchos los vuelve a lanzar el sistema
+  al instante, y algunos no se deben terminar (WindowServer cierra la sesión).
+  Para esos no se ofrece el botón. Un proceso auxiliar indica de qué app es.
 
 ### Vigilancia
 
