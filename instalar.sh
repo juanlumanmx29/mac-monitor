@@ -1,5 +1,5 @@
 #!/bin/bash
-# Instala Telemetría en la carpeta Aplicaciones. Por defecto no arranca sola:
+# Instala Grigory en la carpeta Aplicaciones. Por defecto no arranca sola:
 # se abre cuando la abres. Todo es reversible.
 #
 #   ./instalar.sh                 compila e instala (sin arranque al iniciar sesión)
@@ -8,17 +8,17 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-ETIQUETA="local.telemetria"
+ETIQUETA="local.grigory"
 AGENTE="$HOME/Library/LaunchAgents/$ETIQUETA.plist"
 DOMINIO="gui/$(id -u)"
 # /Applications si el usuario puede escribir en ella (administradores); si
 # no, la carpeta Aplicaciones personal.
 if [ -w /Applications ]; then
-    APP_DESTINO="/Applications/Telemetría.app"
+    APP_DESTINO="/Applications/Grigory.app"
 else
-    APP_DESTINO="$HOME/Applications/Telemetría.app"
+    APP_DESTINO="$HOME/Applications/Grigory.app"
 fi
-BINARIO="$APP_DESTINO/Contents/MacOS/Telemetria"
+BINARIO="$APP_DESTINO/Contents/MacOS/Grigory"
 
 detener() {
     launchctl bootout "$DOMINIO/$ETIQUETA" 2>/dev/null || true
@@ -28,24 +28,36 @@ detener() {
         launchctl print "$DOMINIO/$ETIQUETA" >/dev/null 2>&1 || break
         sleep 0.3
     done
+    pkill -x Grigory 2>/dev/null || true
+}
+
+# La app se llamó Telemetría hasta la versión 2.0: se retira la copia antigua
+# (app, arranque automático y proceso). Sus preferencias las migra la app.
+retirarAntigua() {
+    launchctl bootout "$DOMINIO/local.telemetria" 2>/dev/null || true
+    rm -f "$HOME/Library/LaunchAgents/local.telemetria.plist"
     pkill -x Telemetria 2>/dev/null || true
+    rm -rf "/Applications/Telemetría.app" "$HOME/Applications/Telemetría.app"
 }
 
 if [ "${1:-}" = "--desinstalar" ]; then
     detener
     rm -f "$AGENTE"
-    rm -rf "/Applications/Telemetría.app" "$HOME/Applications/Telemetría.app"
+    retirarAntigua
+    rm -rf "/Applications/Grigory.app" "$HOME/Applications/Grigory.app"
     defaults delete "$ETIQUETA" 2>/dev/null || true
-    echo "Telemetría desinstalada (app, arranque automático y preferencias)."
+    defaults delete local.telemetria 2>/dev/null || true
+    echo "Grigory desinstalada (app, arranque automático y preferencias)."
     exit 0
 fi
 
 ./construir.sh
 detener
+retirarAntigua
 
 mkdir -p "$(dirname "$APP_DESTINO")"
 rm -rf "$APP_DESTINO"
-cp -R "build.noindex/Telemetría.app" "$APP_DESTINO"
+cp -R "build.noindex/Grigory.app" "$APP_DESTINO"
 
 # Registra la app en LaunchServices para que Spotlight y el lanzador la
 # muestren con su icono.
@@ -55,7 +67,7 @@ LSREGISTER=/System/Library/Frameworks/CoreServices.framework/Versions/A/Framewor
 if [ "${1:-}" != "--al-iniciar" ]; then
     # Sin arranque automático: si quedó de una instalación anterior, se quita.
     rm -f "$AGENTE"
-    echo "Telemetría instalada en $APP_DESTINO. Ábrela desde Aplicaciones o Spotlight."
+    echo "Grigory instalada en $APP_DESTINO. Ábrela desde Aplicaciones o Spotlight."
     echo "No arranca al iniciar sesión (para eso: ./instalar.sh --al-iniciar)."
     exit 0
 fi
@@ -84,5 +96,5 @@ cat > "$AGENTE" <<PLIST
 PLIST
 plutil -lint "$AGENTE" >/dev/null
 launchctl bootstrap "$DOMINIO" "$AGENTE"
-echo "Telemetría instalada en $APP_DESTINO y en marcha en la barra de menú."
+echo "Grigory instalada en $APP_DESTINO y en marcha en la barra de menú."
 echo "Arranca sola al iniciar sesión. Para quitarla: ./instalar.sh --desinstalar"

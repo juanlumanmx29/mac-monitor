@@ -184,8 +184,10 @@ struct Grafico: View {
     var reticula = false
     var punto = true
 
+    /// Segundos sin muestras a partir de los cuales la linea se corta.
+    var corte = 12.0
+
     private let cursor = State<CGFloat?>(initialValue: nil)
-    private static let corte = 12.0
 
     private var tope: Double {
         switch escala {
@@ -215,13 +217,13 @@ struct Grafico: View {
             }
 
             for trazo in trazos {
-                let visibles = trazo.muestras.drop { $0.t < inicio - Self.corte }
+                let visibles = trazo.muestras.drop { $0.t < inicio - corte }
                 guard visibles.count > 1 else { continue }
                 // Tramos continuos: se corta donde falta mas de `corte` segundos.
                 var tramos: [[Muestra]] = [[]]
                 var previa: Muestra?
                 for m in visibles {
-                    if let p = previa, m.t - p.t > Self.corte { tramos.append([]) }
+                    if let p = previa, m.t - p.t > corte { tramos.append([]) }
                     tramos[tramos.count - 1].append(m)
                     previa = m
                 }
@@ -328,7 +330,7 @@ struct Grafico: View {
             if m[mid].t < t { lo = mid + 1 } else { hi = mid }
         }
         let candidatas = [lo - 1, lo].filter { $0 >= 0 && $0 < m.count }.map { m[$0] }
-        guard let c = candidatas.min(by: { abs($0.t - t) < abs($1.t - t) }), abs(c.t - t) < Self.corte / 2 else { return nil }
+        guard let c = candidatas.min(by: { abs($0.t - t) < abs($1.t - t) }), abs(c.t - t) < corte / 2 else { return nil }
         return c
     }
 }

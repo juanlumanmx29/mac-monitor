@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-// `Telemetria --capturas <carpeta> [claro]`: muestrea unos segundos con datos
+// `Grigory --capturas <carpeta> [claro]`: muestrea unos segundos con datos
 // reales y guarda un PNG de cada pagina y del desplegable. La ventana es
 // transparente e ignora el raton: no aparece nada en pantalla ni roba el foco.
 // Se captura la ventana real (y no ImageRenderer) porque las tablas y la
@@ -43,7 +43,14 @@ enum Capturas {
                 ?? ui.foto.procesos.first(where: { $0.propio }) {
                 ui.procesosElegidos = [p.pid]
             }
-            let (f, h) = motor.cicloSincrono(visible: true)
+            var (f, h) = motor.cicloSincrono(visible: true)
+            if m == .bateria {
+                // El registro de energia se lee aparte: se espera a que llegue.
+                for _ in 0..<20 where f.tramo == nil {
+                    esperar(0.5)
+                    (f, h) = motor.cicloSincrono(visible: true)
+                }
+            }
             ui.recibir(f, h)
             esperar(0.7)
             guardar(ventana.contentView!, destino.appendingPathComponent("\(m.rawValue)\(sufijo).png"))
@@ -61,6 +68,18 @@ enum Capturas {
         esperar(0.6)
         guardar(anfitrion, destino.appendingPathComponent("desplegable\(sufijo).png"))
         pop.orderOut(nil)
+
+        for (n, pestana) in [("general", 0), ("ahorro", 1)] {
+            let w = NSWindow(contentRect: NSRect(x: 80, y: 80, width: 560, height: 480), styleMask: [.titled],
+                             backing: .buffered, defer: false)
+            w.alphaValue = 0
+            w.ignoresMouseEvents = true
+            w.contentView = Ventanas.anfitrion(VistaConfiguracion(ajustes: ui.ajustes, ahorro: ui.ahorro, inicial: pestana))
+            w.orderFrontRegardless()
+            esperar(0.6)
+            guardar(w.contentView!, destino.appendingPathComponent("configuracion-\(n)\(sufijo).png"))
+            w.orderOut(nil)
+        }
 
         let b = BarraMenu(ui: ui)
         b.actualizar(ui.foto)

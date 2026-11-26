@@ -105,7 +105,7 @@ struct Marca: View {
             }
             .frame(width: 30, height: 30)
             VStack(alignment: .leading, spacing: 2) {
-                Text("TELEMETRÍA").font(.system(size: 11.5, weight: .semibold)).tracking(2.2)
+                Text("GRIGORY").font(.system(size: 11.5, weight: .semibold)).tracking(2.2)
                     .foregroundStyle(Tema.texto)
                 HStack(spacing: 5) {
                     Text(ui.equipo.chipCorto).font(Tema.numero(9.5)).foregroundStyle(Tema.tenue)

@@ -28,10 +28,12 @@ final class Notificador: NSObject, UNUserNotificationCenterDelegate {
     func avisar(_ a: Alerta) {
         guard Preferencias.notificaciones else { return }
         let cpu = a.cpuSostenida.map { "\(Int($0.rounded()))% CPU sostenido · " } ?? ""
-        let texto = "\(a.etiqueta) (pid \(a.pid)) · \(cpu)vivo hace \(Formato.lapso(a.vida))"
+        let carpeta = a.cwd.map { " en \(($0 as NSString).lastPathComponent)" } ?? ""
+        var texto = "\(a.nombreFamilia)\(carpeta) (pid \(a.pid)) · \(cpu)vivo hace \(Formato.lapso(a.vida))"
+        if let v = a.veredicto, v.corto == "en uso" || v.corto == "inactivo" { texto += " · " + v.corto }
         if desdeApp && autorizado {
             let c = UNMutableNotificationContent()
-            c.title = "Telemetría"
+            c.title = "Grigory"
             c.subtitle = a.titulo
             c.body = texto
             c.sound = .default
@@ -41,7 +43,7 @@ final class Notificador: NSObject, UNUserNotificationCenterDelegate {
         }
         let args = ["-e", "on run argv",
                     "-e", "display notification (item 1 of argv) with title (item 2 of argv) subtitle (item 3 of argv)",
-                    "-e", "end run", texto, "Telemetría", a.titulo]
+                    "-e", "end run", texto, "Grigory", a.titulo]
         // Con espera, en otro hilo: un proceso lanzado y no recogido quedaria
         // como zombi de la propia app, y la vigilancia lo detectaria.
         DispatchQueue.global(qos: .utility).async { _ = Sys.ejecutar("/usr/bin/osascript", args, limite: 15) }

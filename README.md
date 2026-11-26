@@ -1,25 +1,28 @@
-<p align="center"><img src="docs/logo.png" width="160" alt="Logo de Telemetría: un indicador circular con una línea de pulso"></p>
+<p align="center"><img src="docs/logo.png" width="160" alt="Logo de Grigory: un indicador circular con una línea de pulso"></p>
 
-# Telemetría
+# Grigory
+
+*Del griego Grēgórios: «el que vigila, el que está en vela».*
 
 Monitor del sistema para macOS, nativo: cifras en vivo en la barra de menú y
 un panel con el detalle de cada parte del equipo. **Sin servidor, sin sudo y
 sin dependencias**: solo las Command Line Tools para compilarlo.
 
-Hasta la versión 1, este repositorio era un servidor Python con un panel en
-el navegador; esa versión sigue disponible en la etiqueta
-[`v1-python`](https://github.com/juanlumanmx29/mac-monitor/tree/v1-python).
-La versión nativa lee lo mismo y algo más, sin pedir la contraseña de
-administrador, y gasta una fracción.
+Hasta la versión 1 se llamaba *mac-monitor* y era un servidor Python con un
+panel en el navegador; esa versión sigue disponible en la etiqueta
+[`v1-python`](https://github.com/juanlumanmx29/grigory/tree/v1-python). La
+versión 2 se llamó Telemetría hasta adoptar este nombre. La versión nativa
+lee lo mismo y algo más, sin pedir la contraseña de administrador, y gasta
+una fracción.
 
 ## Uso
 
 - **Barra de menú**: un icono con la CPU y la temperatura de la CPU (se puede
   elegir qué mostrar: memoria, consumo, red). Si hay alertas aparece un punto
   ámbar o rojo con su número.
-- **Clic en el icono**: desplegable con seis cifras y su último minuto, y las
-  alertas activas. **Clic derecho**: qué mostrar en la barra, notificaciones,
-  salir.
+- **Clic en el icono**: desplegable con seis cifras y su último minuto, las
+  alertas activas y el interruptor del modo ahorro. **Clic derecho**: modo
+  ahorro, qué mostrar en la barra, notificaciones, configuración, salir.
 - **Panel** (desde el desplegable, o abriendo la app): barra lateral con el
   valor vivo de cada módulo y, a la derecha, el resumen en tarjetas o el
   detalle del módulo elegido. Cerrar la ventana no cierra la app: sigue en la
@@ -33,7 +36,7 @@ administrador, y gasta una fracción.
 | **Térmico** | Hasta 8 familias de termistores del SMC (núcleos P y E, GPU, reguladores, chasis, batería, SSD, entrada de aire) y presión térmica |
 | **Ventiladores** | RPM reales con la hélice girando a su velocidad, rango |
 | **Consumo** | Vatios del equipo completo (medidos en la batería o el cargador), de CPU, GPU, Neural Engine y DRAM; frecuencias de cada cluster |
-| **Batería** | Carga, flujo, cargador, ciclos, salud, temperatura |
+| **Batería** | Carga, flujo, cargador, ciclos, salud, temperatura; qué gastó la batería en el último tramo sin cargador; modo ahorro |
 | **Red** y **Disco** | Caudal con historial; tráfico por interfaz |
 | **Procesos** | Todos los procesos en una tabla ordenable, con búsqueda, filtros y ficha de cada uno |
 | **Energía** | Impacto energético por proceso, la columna Energía del Monitor de Actividad |
@@ -76,11 +79,56 @@ dos días consumiendo dos núcleos sin que nadie lo viera.
 | **Suspendido** | info | Detenido con Ctrl+Z o SIGSTOP más de 10 min. |
 | **Reposo** | aviso | Algo impide dormir más de 30 min funcionando con batería. |
 
+Cada alerta de olvidado o desbocado responde **«¿se está usando?»**:
+
+- **Veredicto**: *en uso* (alguien está conectado a sus puertos), *trabajando*
+  (consume CPU de forma sostenida) o *inactivo* (ni conexiones ni CPU), con la
+  última vez que se le vio uso.
+- **Carpeta de trabajo**: el proyecto desde el que se lanzó.
+- **Copias**: si hay otros procesos con el mismo comando y cuál de ellos se
+  usa («esta probablemente sobra: la que se usa es la otra»).
+- **Familias agrupadas**: un servidor como PostgreSQL, con media docena de
+  procesos, es una sola alerta.
+- **Qué es y cómo detenerlo bien**: bases de datos (PostgreSQL, MySQL,
+  Redis, MongoDB), Ollama, servidores web y programas de Node o Python.
+
 Lo crítico llega además como **notificación del sistema**, una vez por
 proceso; al pulsarla se abre la Vigilancia. Cada alerta se puede silenciar:
 vale para el programa (regla y comando), así que sobrevive a que se relance
 con otro pid, y tampoco vuelve a notificar. `tmux`, `screen`, `ssh-agent` y
 similares nunca cuentan como olvidados.
+
+### ¿Qué gastó la batería?
+
+La página de Batería reconstruye el último tramo sin cargador (o el actual)
+con el registro de energía que lleva macOS, el mismo que usa la columna
+«Energía en 12 h» del Monitor de Actividad: cuándo se desenchufó, la curva de
+carga y de vatios, el tiempo despierta (el reposo no cuenta), el reparto del
+consumo por app y, si la cámara estuvo encendida, cuánto tiempo (una
+videollamada se nota enseguida).
+
+### Modo ahorro
+
+Para una llamada o cualquier rato con batería en que no hace falta toda la
+potencia. Se activa con un clic desde el desplegable, el menú del icono o la
+página de Batería, y al desactivarlo todo vuelve a como estaba:
+
+- **Modo de bajo consumo de macOS**: baja los relojes del chip y la actividad
+  de fondo. macOS pide Touch ID o la contraseña al activarlo y al
+  desactivarlo; no queda ningún cambio permanente en el sistema.
+- **Brillo** de la pantalla integrada al nivel elegido (por defecto 50 %).
+  Al salir se devuelve el anterior, salvo que lo hayas cambiado tú.
+- **La propia app** refresca cada 3 s y deja de medir el impacto energético.
+
+Mientras está activo, el icono de la barra de menú es una hoja. Sobre los
+ciclos de la batería: el modo ahorro reduce el consumo, pero la única forma de
+no gastar ciclos es usar el cargador.
+
+### Configuración
+
+`⌘,` o desde el menú del icono: tema, qué mostrar en la barra de menú,
+notificaciones, qué hace el modo ahorro (y su nivel de brillo) y las alertas
+silenciadas, con la opción de reactivarlas.
 
 ### Teclado
 
@@ -93,6 +141,7 @@ similares nunca cuentan como olvidados.
 | `⇧⌘P` | Pausar o reanudar el refresco (la vigilancia sigue) |
 | `↑` `↓` | Recorrer la barra lateral |
 | `⌘W` | Cerrar la ventana (la app sigue en la barra de menú) |
+| `⌘,` | Configuración |
 
 Ver › Apariencia elige entre seguir al sistema, oscura o clara.
 
@@ -102,8 +151,8 @@ Requiere macOS 14 o posterior y las Command Line Tools (`xcode-select
 --install`); no hace falta Xcode.
 
 ```bash
-git clone https://github.com/juanlumanmx29/mac-monitor.git
-cd mac-monitor
+git clone https://github.com/juanlumanmx29/grigory.git
+cd grigory
 ./instalar.sh
 ```
 
@@ -117,6 +166,9 @@ Si la quieres siempre en la barra de menú desde que inicias sesión:
 ```bash
 ./instalar.sh --al-iniciar
 ```
+
+Si tenías instalada la versión anterior con el nombre Telemetría, el
+instalador la retira y la app hereda sus preferencias.
 
 Para quitarlo todo (app, arranque automático y preferencias):
 
@@ -143,6 +195,8 @@ Casi todo se lee dentro de la propia app, sin lanzar programas:
 | Procesos | `sysctl` y libproc |
 | Puertos | libproc |
 | Reposo | `IOPMCopyAssertionsByProcess` |
+| Qué gastó la batería | registro de energía de macOS (powerlog), en solo lectura |
+| Brillo (modo ahorro) | DisplayServices |
 
 Solo quedan tres programas auxiliares, con cadencias lentas: `ps` (CPU y
 memoria de los procesos de otros usuarios, que el kernel solo deja leer a un
@@ -181,14 +235,14 @@ CPU, procesos auxiliares, memoria y duración de cada ciclo.
   equipo y la GPU; el desglose vuelve al enchufar.
 - **Mac Intel**: sin clusters ni IOReport de Apple Silicon; los núcleos se
   muestran como un único grupo y no hay vatios por bloque.
-- IOReport y la función que identifica la app responsable de un proceso son
-  APIs privadas: se enlazan en ejecución y, si cambian, el dato se muestra como
+- IOReport, DisplayServices y la función que identifica la app responsable de
+  un proceso son APIs privadas, igual que el formato del registro de energía: se enlazan en ejecución y, si cambian, el dato se muestra como
   «sin datos» en vez de romper la app.
 
 ## Diagnóstico
 
 ```bash
-F="build.noindex/Telemetría.app/Contents/MacOS/Telemetria"
+F="build.noindex/Grigory.app/Contents/MacOS/Grigory"
 $F --volcar               # todo lo que lee, en texto
 $F --medir 40 fondo       # CPU que gasta el motor con la ventana cerrada
 $F --capturas /tmp/x      # un PNG de cada página (añade «claro» para el tema claro)

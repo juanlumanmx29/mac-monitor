@@ -562,6 +562,8 @@ struct DetalleBateria: View {
                 } else {
                     Panel { Vacio(texto: "Este equipo no tiene batería.", icono: "powerplug") }
                 }
+                Panel { PanelAhorro(ajustes: ui.ajustes, ahorro: ui.ahorro, compacto: true) }
+                PanelTramo(tramo: f.tramo, ui: ui)
                 PanelHistorial(titulo: "Historial",
                                trazos: [Trazo(muestras: ui.historial[.bateria], color: Tema.verde, relleno: true, nombre: "carga")],
                                ahora: ui.ahora)
@@ -642,6 +644,96 @@ struct DetalleDisco: View {
                                         Trazo(muestras: ui.historial[.discoEscritura], color: Tema.violeta, nombre: "escritura")],
                                escala: .auto(minimo: 102_400), ahora: ui.ahora, formato: { Formato.tasa($0) }, alto: 150)
             }
+        }
+    }
+}
+
+// MARK: - ¿Qué gastó la batería?
+
+/// El último tramo con batería según el registro de energía de macOS: curva
+/// de carga, vatios y reparto del consumo por app.
+struct PanelTramo: View {
+    let tramo: TramoBateria?
+    @ObservedObject var ui: Interfaz
+
+    var body: some View {
+        Panel(titulo: "¿Qué gastó la batería?", detalle: tramo.map { encabezado($0) },
+              ayuda: "Sale del registro de energía de macOS, el mismo de la columna «Energía en 12 h» del Monitor de Actividad. Se lee cada 5 minutos con esta página abierta.") {
+            if let t = tramo {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(spacing: 18) {
+                        dato("carga", "\(Int(t.nivelInicio)) % → \(Int(t.nivelFin)) %", t.puntos > 0 ? Tema.ambar : Tema.verde)
+                        dato("gastó", "\(Int(t.puntos.rounded())) puntos", Tema.texto)
+                        dato("despierta", Formato.lapso(t.despierta), Tema.texto)
+                        dato("media", Formato.vatios(t.vatiosMedios), Tema.ambar)
+                        if t.despierta > 600 && t.puntos > 0 {
+                            dato("ritmo", "\(Formato.decimal(t.puntos / (t.despierta / 3600), 1)) %/h", Tema.texto)
+                        }
+                    }
+                    if t.minutosCamara >= 3 {
+                        HStack(spacing: 8) {
+                            Insignia("videollamada", .info, icono: "video.fill")
+                            Text("La cámara estuvo encendida \(Formato.lapso(t.minutosCamara * 60)) en este tramo.")
+                                .font(.system(size: 11.5)).foregroundStyle(Tema.texto)
+                        }
+                    }
+                    let ventana = max(600, t.fin.timeIntervalSince1970 - t.inicio.timeIntervalSince1970)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Grafico(trazos: [Trazo(muestras: t.curva, color: Tema.verde, relleno: true, nombre: "carga")],
+                                ventana: ventana, escala: .fija(100), ahora: t.fin.timeIntervalSince1970,
+                                formato: { "\(Int($0.rounded())) %" }, interactivo: true, reticula: true, corte: 1800)
+                            .frame(height: 90)
+                        Grafico(trazos: [Trazo(muestras: t.potencia, color: Tema.ambar, relleno: true, nombre: "consumo")],
+                                ventana: ventana, escala: .auto(minimo: 10), ahora: t.fin.timeIntervalSince1970,
+                                formato: { Formato.vatios($0, 1) }, interactivo: true, corte: 1800)
+                            .frame(height: 50)
+                        HStack {
+                            Text(hora(t.inicio)); Spacer(); Text(t.enCurso ? "ahora" : hora(t.fin))
+                        }
+                        .font(Tema.numero(9.5)).foregroundStyle(Tema.tenue)
+                    }
+                    Rotulo("consumo por app")
+                    let tope = max(1, t.apps.map(\.pctEnergia).max() ?? 1)
+                    VStack(spacing: 0) {
+                        ForEach(t.apps) { a in
+                            HStack(spacing: 8) {
+                                Text(a.nombre).font(.system(size: 11.5)).foregroundStyle(Tema.texto).lineLimit(1)
+                                    .frame(width: 190, alignment: .leading)
+                                BarraNivel(fraccion: a.pctEnergia / tope, color: Tema.ambar, alto: 5)
+                                Text(Formato.decimal(a.pctEnergia, 1) + " %").font(Tema.numero(11, .medium))
+                                    .foregroundStyle(Tema.texto).frame(width: 56, alignment: .trailing)
+                                Text("CPU " + Formato.lapso(a.cpu)).font(Tema.numero(10)).foregroundStyle(Tema.tenue)
+                                    .frame(width: 78, alignment: .trailing)
+                                Text("GPU " + Formato.pct(a.pctGPU)).font(Tema.numero(10)).foregroundStyle(Tema.tenue)
+                                    .frame(width: 62, alignment: .trailing)
+                            }
+                            .padding(.vertical, 3)
+                        }
+                    }
+                    Text("Proporciones del consumo atribuido a apps; la pantalla gasta además por su cuenta. El reposo no cuenta como tiempo despierta.")
+                        .font(.system(size: 10.5)).foregroundStyle(Tema.tenue)
+                }
+            } else {
+                Vacio(texto: "Leyendo el registro de energía de macOS… Si no aparece, el sistema no dejó leerlo o no hubo tramos con batería en las últimas 48 h.",
+                      icono: "hourglass")
+            }
+        }
+    }
+
+    private func encabezado(_ t: TramoBateria) -> String {
+        t.enCurso ? "con batería desde las \(hora(t.inicio))" : "último tramo: \(hora(t.inicio)) – \(hora(t.fin))"
+    }
+
+    private func hora(_ d: Date) -> String {
+        let f = DateFormatter()
+        f.dateFormat = Calendar.current.isDateInToday(d) ? "HH:mm" : "dd/MM HH:mm"
+        return f.string(from: d)
+    }
+
+    private func dato(_ k: String, _ v: String, _ c: Color) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Rotulo(k)
+            Text(v).font(Tema.numero(15, .medium)).foregroundStyle(c)
         }
     }
 }

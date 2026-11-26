@@ -18,13 +18,19 @@ struct FichaQueEs: View {
 
     var body: some View {
         let d = descripcion
-        let sistema = d.origen == "macOS"
+        let (icono, rotulo): (String, String) = {
+            switch d.tipo {
+            case .sistema: return ("apple.logo", "proceso de macOS")
+            case .servicio: return ("server.rack", d.origen)
+            case .auxiliar: return ("square.on.square", "auxiliar de \(d.origen)")
+            }
+        }()
         HStack(alignment: .top, spacing: 9) {
-            Image(systemName: sistema ? "apple.logo" : "square.on.square")
+            Image(systemName: icono)
                 .font(.system(size: 13)).foregroundStyle(Tema.tenue).frame(width: 16)
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
-                    Insignia(sistema ? "proceso de macOS" : "auxiliar de \(d.origen)", .info)
+                    Insignia(rotulo, .info)
                     if d.riesgo == .peligroso { Insignia("no terminar", .critico) }
                     if d.riesgo == .relanza { Insignia("se relanza solo", .neutro) }
                 }
@@ -582,7 +588,7 @@ struct TarjetaAlertaCompleta: View {
     var body: some View {
         let a = alerta
         let (v, u) = valorAlerta(a)
-        let puertos = ui.foto.puertos.filter { $0.pid == a.pid }
+        let puertos = ui.foto.puertos.filter { $0.pid == a.pid || a.familia.contains($0.pid) }
         let resaltada = ui.alertaResaltada == a.id
         let queEs = ui.descripcion(a)
         VStack(alignment: .leading, spacing: 8) {
@@ -592,7 +598,25 @@ struct TarjetaAlertaCompleta: View {
                 Spacer()
                 Text(v + u).font(Tema.numero(18, .medium)).foregroundStyle(Tema.color(a.nivel))
             }
-            Text(a.etiqueta).font(.system(size: 12, weight: .medium)).foregroundStyle(Tema.cian)
+            HStack(spacing: 8) {
+                Text(a.nombreFamilia).font(.system(size: 12, weight: .medium)).foregroundStyle(Tema.cian)
+                if let c = a.carpetaCorta {
+                    Label(c, systemImage: "folder").font(.system(size: 11)).foregroundStyle(Tema.tenue).lineLimit(1)
+                        .help("Carpeta de trabajo: el proyecto desde el que se lanzó.")
+                }
+            }
+            if let v = a.veredicto {
+                HStack(alignment: .top, spacing: 8) {
+                    Insignia(v.corto, v.tono)
+                    Text(v.texto).font(.system(size: 12, weight: .medium)).foregroundStyle(Tema.texto)
+                }
+            }
+            if let c = a.sobreCopias {
+                HStack(alignment: .top, spacing: 8) {
+                    Image(systemName: "square.on.square").font(.system(size: 11)).foregroundStyle(Tema.tenue)
+                    Text(c).font(.system(size: 11.5)).foregroundStyle(Tema.texto)
+                }
+            }
             if let d = queEs { FichaQueEs(descripcion: d) }
             Text(a.motivo).font(.system(size: 11.5)).foregroundStyle(Tema.tenue).fixedSize(horizontal: false, vertical: true)
             HStack(spacing: 12) {
@@ -603,6 +627,7 @@ struct TarjetaAlertaCompleta: View {
                 dato("memoria", Formato.mb(a.rss))
                 dato("terminal", a.tty == "??" ? "ninguna" : a.tty)
                 if let padre = a.padre { dato("padre", "\(padre) (\(a.ppid))") }
+                if a.familia.count > 1 { dato("familia", "\(a.familia.count) procesos") }
                 if !puertos.isEmpty { dato("escucha en", puertos.map { ":\($0.puerto)" }.joined(separator: " ")) }
             }
             if !a.zombis.isEmpty {

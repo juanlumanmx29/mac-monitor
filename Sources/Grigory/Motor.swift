@@ -19,7 +19,9 @@ struct Demanda: Equatable {
     var puertos = false
     var energia = false
     var hilos = false
-    static let todo = Demanda(procesos: true, puertos: true, energia: true, hilos: true)
+    /// Registro de energia de macOS (¿qué gastó la batería?).
+    var registro = false
+    static let todo = Demanda(procesos: true, puertos: true, energia: true, hilos: true, registro: true)
 }
 
 struct CostoPropio {
@@ -60,6 +62,7 @@ struct Foto {
     var puertos: [Puerto] = []
     var energia: [FilaEnergia]?
     var edadEnergia: Double?
+    var tramo: TramoBateria?
     var reposo: [Asercion] = []
     var enBateria: Bool?
     var vigilancia = EstadoVigilancia()
@@ -133,6 +136,30 @@ enum Preferencias {
         d.object(forKey: "barra.\(m.rawValue)") as? Bool ?? m.porDefecto
     }
     static func ponerBarra(_ m: MetricaBarra, _ v: Bool) { d.set(v, forKey: "barra.\(m.rawValue)") }
+    // Modo ahorro
+    static var ahorroActivo: Bool {
+        get { d.bool(forKey: "ahorro.activo") }
+        set { d.set(newValue, forKey: "ahorro.activo") }
+    }
+    static var ahorroBajoConsumo: Bool {
+        get { d.object(forKey: "ahorro.bajoConsumo") as? Bool ?? true }
+        set { d.set(newValue, forKey: "ahorro.bajoConsumo") }
+    }
+    static var ahorroBrillo: Bool {
+        get { d.object(forKey: "ahorro.brillo") as? Bool ?? true }
+        set { d.set(newValue, forKey: "ahorro.brillo") }
+    }
+    /// Brillo durante el modo ahorro, de 0 a 1.
+    static var ahorroNivelBrillo: Double {
+        get { d.object(forKey: "ahorro.nivelBrillo") as? Double ?? 0.5 }
+        set { d.set(newValue, forKey: "ahorro.nivelBrillo") }
+    }
+    /// Lo que habia antes de activar el modo, para dejarlo igual al salir.
+    static var ahorroPrevio: [String: Any] {
+        get { d.dictionary(forKey: "ahorro.previo") ?? [:] }
+        set { d.set(newValue, forKey: "ahorro.previo") }
+    }
+
     /// 0 sigue al sistema, 1 oscuro, 2 claro.
     static var apariencia: Int {
         get { d.integer(forKey: "apariencia") }
@@ -158,7 +185,7 @@ enum MetricaBarra: String, CaseIterable {
 
 final class Motor {
     let equipo = Equipo.actual
-    private let cola = DispatchQueue(label: "local.telemetria.motor", qos: .utility)
+    private let cola = DispatchQueue(label: "local.grigory.motor", qos: .utility)
     private var temporizador: DispatchSourceTimer?
     private var intervalo = 0.0
     private var visible = false
@@ -188,12 +215,18 @@ final class Motor {
     private var hilos: Int?
     private var energia: (ts: Double, filas: [FilaEnergia])?
     private var midiendoEnergia = false
+    private var tramo: TramoBateria?
+    private var leyendoRegistro = false
+    /// Modo ahorro: muestreo lento y nada de lo caro.
+    private var ahorro = false
     private var avisados = Set<String>()
     private var usoPrevio: (t: Double, propio: Double, hijos: Double)?
     private var bateria: BateriaInstantanea?
     private var ventiladores: [Ventilador] = []
     private var temperaturas: [FamiliaTermica] = []
     private var ultimaVigilancia: EstadoVigilancia?
+    private var vistoDesde: [String: Double] = [:]
+    private var ultimoUso: [String: Double] = [:]
 
     /// Milisegundos por tramo del ultimo ciclo (diagnostico de --volcar).
     private(set) var perfil: [(String, Double)] = []
@@ -220,6 +253,13 @@ final class Motor {
         cola.async { self.demanda = d }
     }
 
+    func ponerAhorro(_ a: Bool) {
+        cola.async {
+            self.ahorro = a
+            self.reprogramar(inmediato: false)
+        }
+    }
+
     func pausar(_ p: Bool) {
         cola.async {
             self.pausado = p
@@ -238,7 +278,8 @@ final class Motor {
     private var aLaVista: Bool { visible && !pausado }
 
     private func reprogramar(inmediato: Bool) {
-        let nuevo = aLaVista ? 1.0 : Reglas.muestreo
+        // En modo ahorro, la ventana abierta se refresca cada 3 s.
+        let nuevo = aLaVista ? (ahorro ? 3.0 : 1.0) : Reglas.muestreo
         if temporizador == nil {
             let t = DispatchSource.makeTimerSource(queue: cola)
             t.setEventHandler { [weak self] in self?.disparar() }
@@ -288,7 +329,7 @@ final class Motor {
 
         // Procesos y vigilancia: siempre.
         let tabla = tablaProcesos.muestrear(
-            conAjenos: vencido("ajenos", completa && demanda.procesos ? 5 : Reglas.intervaloFoto, ahora))
+            conAjenos: vencido("ajenos", completa && demanda.procesos && !ahorro ? 5 : Reglas.intervaloFoto, ahora))
         tramo("procesos")
         if gestionados == nil || vencido("launchd", 30, ahora) {
             if let g = leerGestionados() { gestionados = g }
@@ -301,7 +342,9 @@ final class Motor {
         // Las reglas miden ventanas de minutos: cada 5 s basta, tambien con la
         // ventana abierta.
         if ultimaVigilancia == nil || vencido("vigilancia", Reglas.muestreo, ahora) {
-            ultimaVigilancia = vigilante.analizar(tabla, gestionados: gestionados, reposo: reposo, enBateria: enBat)
+            var v = vigilante.analizar(tabla, gestionados: gestionados, reposo: reposo, enBateria: enBat)
+            usoDeRed(&v, tabla)
+            ultimaVigilancia = v
         }
         f.vigilancia = ultimaVigilancia!
         tramo("vigilancia")
@@ -363,7 +406,19 @@ final class Motor {
         tramo("hilos")
             // Energia: cada 30 s con su detalle abierto; en el resumen, donde
             // solo asoma el mayor consumidor, cada 2 min.
-            if demanda.energia && !midiendoEnergia && vencido("energia", demanda.hilos ? 120 : 30, ahora) {
+            // Registro de energia: con la pagina de Bateria a la vista, cada 5 min.
+            if demanda.registro && !leyendoRegistro && (tramo == nil || vencido("registro", 300, ahora)) {
+                leyendoRegistro = true
+                DispatchQueue.global(qos: .utility).async {
+                    let t = RegistroEnergia.ultimoTramo()
+                    self.cola.async {
+                        self.tramo = t
+                        self.leyendoRegistro = false
+                    }
+                }
+            }
+            f.tramo = tramo
+            if demanda.energia && !ahorro && !midiendoEnergia && vencido("energia", demanda.hilos ? 120 : 30, ahora) {
                 midiendoEnergia = true
                 DispatchQueue.global(qos: .utility).async {
                     let r = leerEnergia()
@@ -426,6 +481,56 @@ final class Motor {
                             vigilancia: gestionados != nil)
         f.propio = costo(desde: t0)
         return (f, historial)
+    }
+
+    /// «¿Se está usando?»: puertos en escucha y conexiones entrantes de cada
+    /// alerta (su familia entera) y de sus copias. Solo se recorren los
+    /// sockets de esos procesos, asi que cuesta poco y corre tambien en fondo.
+    private func usoDeRed(_ v: inout EstadoVigilancia, _ tabla: [Int32: Proceso]) {
+        let indices = v.alertas.indices.filter {
+            (v.alertas[$0].regla == .olvidado || v.alertas[$0].regla == .desbocado) && v.alertas[$0].propio
+        }
+        guard !indices.isEmpty else { return }
+        var pids = Set<Int32>()
+        for i in indices {
+            pids.formUnion(v.alertas[i].familia.isEmpty ? [v.alertas[i].pid] : v.alertas[i].familia)
+            pids.formUnion(v.alertas[i].copias)
+        }
+        let uso = recorrerSockets(pids.filter { tabla[$0]?.propio == true }.sorted()).uso
+        // Una conexion es entrante si su puerto local es uno de los de escucha
+        // del grupo: las salientes (a una base de datos, a una API) no cuentan.
+        func resumen(_ miembros: [Int32]) -> (escucha: [Int], conexiones: Int) {
+            let escucha = Set(miembros.flatMap { uso[$0]?.escucha ?? [] })
+            let entrantes = miembros.reduce(0) { n, pid in
+                n + (uso[pid]?.establecidas.filter { escucha.contains($0) }.count ?? 0)
+            }
+            // PostgreSQL: cada cliente es un proceso hijo, tambien los que
+            // llegan por socket Unix y no aparecen como conexion TCP.
+            let clientesPG = miembros.filter { tabla[$0].map { Conocidos.esClientePostgres($0.args) } ?? false }.count
+            return (escucha.sorted(), max(entrantes, clientesPG))
+        }
+        let epoca = Date().timeIntervalSince1970
+        var vigentes = Set<String>()
+        for i in indices {
+            let a = v.alertas[i]
+            let r = resumen(a.familia.isEmpty ? [a.pid] : a.familia)
+            v.alertas[i].escucha = r.escucha
+            v.alertas[i].conexiones = r.conexiones
+            // Una base de datos puede estar sin conexiones ahora y usarse cada
+            // rato: se recuerda la ultima vez que se vio uso.
+            vigentes.insert(a.id)
+            if vistoDesde[a.id] == nil { vistoDesde[a.id] = epoca }
+            if r.conexiones > 0 || (a.cpuSostenida ?? 0) >= 2 { ultimoUso[a.id] = epoca }
+            v.alertas[i].vigiladoDesde = vistoDesde[a.id]
+            v.alertas[i].ultimoUso = ultimoUso[a.id]
+            v.alertas[i].usoCopias = a.copias.compactMap { c in
+                guard let p = tabla[c], p.propio else { return nil }
+                let rc = resumen([c])
+                return Copia(pid: c, escucha: rc.escucha, conexiones: rc.conexiones, tty: p.tty)
+            }
+        }
+        vistoDesde = vistoDesde.filter { vigentes.contains($0.key) }
+        ultimoUso = ultimoUso.filter { vigentes.contains($0.key) }
     }
 
     /// Consumo de todo el equipo. Con bateria, todo sale de ella; enchufado,

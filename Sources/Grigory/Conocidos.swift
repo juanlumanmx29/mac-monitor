@@ -16,10 +16,18 @@ struct Descripcion {
         case peligroso
     }
 
+    enum Tipo {
+        case sistema
+        case servicio
+        case auxiliar
+    }
+
     let texto: String
     let riesgo: Riesgo
-    /// Rotulo corto: "macOS" o el nombre de la app de la que depende.
+    /// Rotulo corto: "macOS", el servicio ("PostgreSQL") o la app de la que
+    /// depende.
     let origen: String
+    var tipo: Tipo = .sistema
 
     var consecuencia: String? {
         switch riesgo {
@@ -99,7 +107,8 @@ enum Conocidos {
 
     /// Descripcion del catalogo o, si no esta, de la ruta. `app` es la app
     /// responsable, si se conoce (para los procesos auxiliares).
-    static func describir(nombre: String, ruta: String, app: NSRunningApplication?) -> Descripcion? {
+    static func describir(nombre: String, ruta: String, args: String, app: NSRunningApplication?) -> Descripcion? {
+        if let d = servicio(nombre: nombre, args: args) { return d }
         if let e = porNombre[nombre] ?? porPrefijo.first(where: { nombre.hasPrefix($0.0) })?.1 {
             return Descripcion(texto: e.texto, riesgo: e.riesgo, origen: "macOS")
         }
@@ -109,7 +118,70 @@ enum Conocidos {
         }
         if let app, let n = app.localizedName {
             return Descripcion(texto: "Proceso auxiliar de \(n). Terminarlo cierra solo esa parte (una pestaña, una extensión, un servidor local); la app suele volver a crearlo.",
-                               riesgo: .normal, origen: n)
+                               riesgo: .normal, origen: n, tipo: .auxiliar)
+        }
+        return nil
+    }
+
+    // MARK: - Servicios de desarrollo
+
+    private static let trabajadoresPostgres = ["checkpointer", "background writer", "walwriter", "autovacuum",
+                                               "logical replication", "archiver", "startup", "walreceiver",
+                                               "walsender", "walsummarizer", "io worker", "stats collector"]
+
+    private static let interpretes: [String: String] = [
+        "node": "Node.js", "deno": "Deno", "bun": "Bun", "python": "Python", "ruby": "Ruby",
+        "php": "PHP", "java": "Java", "perl": "Perl",
+    ]
+
+    /// Una conexion de cliente a PostgreSQL: cada una es un proceso hijo
+    /// titulado «postgres: usuario base origen estado». Sirve para contar las
+    /// que llegan por socket Unix, que no pasan por TCP.
+    static func esClientePostgres(_ args: String) -> Bool {
+        guard args.hasPrefix("postgres: ") else { return false }
+        let resto = args.dropFirst(10).trimmingCharacters(in: .whitespaces)
+        return !trabajadoresPostgres.contains { resto.hasPrefix($0) }
+    }
+
+    /// Bases de datos, servidores y programas de proyectos: que son y como se
+    /// detienen bien.
+    private static func servicio(nombre: String, args: String) -> Descripcion? {
+        func d(_ t: String, _ origen: String, _ r: Descripcion.Riesgo = .normal) -> Descripcion {
+            Descripcion(texto: t, riesgo: r, origen: origen, tipo: .servicio)
+        }
+        let n = nombre.lowercased()
+        if n == "postgres" || n == "postmaster" {
+            if args.hasPrefix("postgres: ") {
+                let resto = String(args.dropFirst(10)).trimmingCharacters(in: .whitespaces)
+                if let t = trabajadoresPostgres.first(where: { resto.hasPrefix($0) }) {
+                    return d("Trabajador interno de PostgreSQL (\(t)). No lo termines por separado: el servidor entra en recuperación y corta todas las conexiones. Si hay que pararlo, se detiene el servidor completo.",
+                             "PostgreSQL", .peligroso)
+                }
+                return d("Una conexión de un cliente a PostgreSQL (\(resto)). Terminarla cierra solo esa sesión.", "PostgreSQL")
+            }
+            var detener = "pg_ctl stop"
+            if let r = args.range(of: " -D ") ?? args.range(of: " -D\"") {
+                let dir = args[r.upperBound...].split(separator: " ").first.map { $0.trimmingCharacters(in: CharacterSet(charactersIn: "\"")) }
+                if let dir, !dir.isEmpty { detener = "pg_ctl -D \(dir) stop" }
+            }
+            return d("PostgreSQL, servidor de bases de datos. Los procesos «postgres: …» son trabajadores del mismo servidor o conexiones de clientes. Para detenerlo entero y bien: \(detener). Terminarlo desde aquí pide un cierre ordenado, que espera a que se desconecten los clientes.",
+                     "PostgreSQL")
+        }
+        switch n {
+        case "redis-server": return d("Redis, base de datos en memoria. Para detenerla guardando los datos: redis-cli shutdown.", "Redis")
+        case "mysqld", "mariadbd": return d("MySQL, servidor de bases de datos. Para detenerlo: mysqladmin shutdown.", "MySQL")
+        case "mongod": return d("MongoDB, servidor de bases de datos. Terminarlo (SIGTERM) lo cierra ordenadamente.", "MongoDB")
+        case "ollama": return d("Ollama, servidor de modelos de IA locales. Mientras carga o usa un modelo ocupa mucha memoria y CPU.", "Ollama")
+        case "nginx": return d("nginx, servidor web y proxy inverso. Para detenerlo: nginx -s stop.", "nginx")
+        case "caddy": return d("Caddy, servidor web y proxy inverso. Para detenerlo: caddy stop.", "Caddy")
+        case "cloudflared": return d("Túnel de Cloudflare: publica un servicio local en internet a través de Cloudflare.", "Cloudflare")
+        default: break
+        }
+        var base = n
+        while base.first == "-" { base.removeFirst() }
+        while let u = base.last, u.isNumber || u == "." { base.removeLast() }
+        if let lenguaje = interpretes[base] {
+            return d("Un programa de \(lenguaje): el servidor o el script de algún proyecto. Su carpeta de trabajo indica cuál.", lenguaje)
         }
         return nil
     }

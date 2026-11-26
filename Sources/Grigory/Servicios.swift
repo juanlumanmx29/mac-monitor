@@ -16,6 +16,14 @@ struct Puerto: Identifiable {
     var id: String { "\(pid):\(puerto)" }
 }
 
+/// Uso de red de un proceso: puertos en los que escucha y puerto local de
+/// cada conexion establecida. Una conexion cuyo puerto local es uno de los de
+/// escucha es entrante: alguien esta usando el servicio.
+struct UsoRed {
+    var escucha: [Int] = []
+    var establecidas: [Int] = []
+}
+
 /// Sockets TCP en LISTEN de los procesos propios, con libproc: la misma via
 /// que usa lsof, pero sin lanzar nada.
 ///
@@ -24,6 +32,13 @@ struct Puerto: Identifiable {
 /// que netstat lanzado desde la app devuelve la lista vacia. Los procesos de
 /// otros usuarios quedan fuera, como con lsof sin sudo.
 func leerPuertos(_ pids: [Int32]) -> [Puerto] {
+    recorrerSockets(pids).puertos
+}
+
+/// Recorre los sockets TCP de esos procesos: puertos en escucha (agrupados)
+/// y uso de red de cada pid.
+func recorrerSockets(_ pids: [Int32]) -> (puertos: [Puerto], uso: [Int32: UsoRed]) {
+    var uso: [Int32: UsoRed] = [:]
     let tamFD = MemoryLayout<proc_fdinfo>.stride
     let tamSock = Int32(MemoryLayout<socket_fdinfo>.size)
     var fds = [proc_fdinfo](repeating: proc_fdinfo(), count: 256)
@@ -41,9 +56,14 @@ func leerPuertos(_ pids: [Int32]) -> [Puerto] {
             guard proc_pidfdinfo(pid, fds[i].proc_fd, PROC_PIDFDSOCKETINFO, &si, tamSock) == tamSock,
                   si.psi.soi_kind == Int32(SOCKINFO_TCP) else { continue }
             let tcp = si.psi.soi_proto.pri_tcp
-            guard tcp.tcpsi_state == Int32(TSI_S_LISTEN) else { continue }
             var ini = tcp.tcpsi_ini
             let puerto = Int(UInt16(bigEndian: UInt16(truncatingIfNeeded: ini.insi_lport)))
+            if tcp.tcpsi_state == Int32(TSI_S_ESTABLISHED) {
+                uso[pid, default: UsoRed()].establecidas.append(puerto)
+                continue
+            }
+            guard tcp.tcpsi_state == Int32(TSI_S_LISTEN) else { continue }
+            if !(uso[pid]?.escucha.contains(puerto) ?? false) { uso[pid, default: UsoRed()].escucha.append(puerto) }
             let v6 = ini.insi_vflag & UInt8(INI_IPV6) != 0
             var buf = [CChar](repeating: 0, count: Int(INET6_ADDRSTRLEN))
             if v6 {
@@ -72,10 +92,11 @@ func leerPuertos(_ pids: [Int32]) -> [Puerto] {
             }
         }
     }
-    return agrupado.values.map { p, protos in
+    let puertos = agrupado.values.map { p, protos in
         Puerto(puerto: p.puerto, pid: p.pid, proceso: p.proceso, host: p.host, expuesto: p.expuesto,
                protocolos: protos.contains("IPv4/IPv6") ? "IPv4/IPv6" : protos.sorted().joined(separator: "/"))
     }.sorted { ($0.expuesto ? 0 : 1, $0.puerto) < ($1.expuesto ? 0 : 1, $1.puerto) }
+    return (puertos, uso)
 }
 
 // MARK: - Reposo

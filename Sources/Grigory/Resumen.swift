@@ -32,7 +32,7 @@ struct PaginaResumen: View {
         if !eq.macos.isEmpty { partes.append("macOS \(eq.macos)") }
         return HStack(alignment: .firstTextBaseline) {
             VStack(alignment: .leading, spacing: 3) {
-                Text("Telemetría \(eq.chipCorto)").font(.system(size: 22, weight: .semibold)).foregroundStyle(Tema.texto)
+                Text("Grigory · \(eq.chipCorto)").font(.system(size: 22, weight: .semibold)).foregroundStyle(Tema.texto)
                 Text(partes.joined(separator: " · ")).font(Tema.numero(11)).foregroundStyle(Tema.tenue)
             }
             Spacer()
@@ -121,9 +121,16 @@ struct TarjetaAlerta: View {
                     Spacer(minLength: 0)
                 }
                 Cifra(valor: valorAlerta(a).0, unidad: valorAlerta(a).1, color: Tema.color(a.nivel), tam: 27)
-                Text(a.etiqueta).font(.system(size: 11)).foregroundStyle(Tema.texto).lineLimit(1)
+                Text(a.nombreFamilia).font(.system(size: 11)).foregroundStyle(Tema.texto).lineLimit(1)
                 HStack(spacing: 10) {
-                    Text("pid ").foregroundStyle(Tema.tenue) + Text("\(a.pid)").foregroundStyle(Tema.texto)
+                    if let v = a.veredicto {
+                        Text(v.corto).foregroundStyle(v.tono.color).fontWeight(.semibold)
+                    }
+                    if let c = a.cwd {
+                        Text((c as NSString).lastPathComponent).foregroundStyle(Tema.tenue).lineLimit(1)
+                    } else {
+                        Text("pid ").foregroundStyle(Tema.tenue) + Text("\(a.pid)").foregroundStyle(Tema.texto)
+                    }
                     Text("vida ").foregroundStyle(Tema.tenue) + Text(Formato.lapso(a.vida)).foregroundStyle(Tema.texto)
                 }
                 .font(.system(size: 10))

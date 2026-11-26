@@ -18,14 +18,14 @@ final class BarraMenu: NSObject, NSPopoverDelegate {
         self.ui = ui
         super.init()
         if let b = item.button {
-            let img = NSImage(systemSymbolName: "waveform.path.ecg", accessibilityDescription: "Telemetría")
+            let img = NSImage(systemSymbolName: "waveform.path.ecg", accessibilityDescription: "Grigory")
             img?.isTemplate = true
             b.image = img
             b.imagePosition = .imageLeading
             b.target = self
             b.action = #selector(pulsar(_:))
             b.sendAction(on: [.leftMouseUp, .rightMouseUp])
-            b.toolTip = "Telemetría"
+            b.toolTip = "Grigory"
         }
         popover.behavior = .transient
         popover.animates = false
@@ -64,6 +64,13 @@ final class BarraMenu: NSObject, NSPopoverDelegate {
 
     // MARK: - Titulo
 
+    /// Vuelve a dibujar el titulo aunque el texto no haya cambiado (cambio de
+    /// metricas o del modo ahorro).
+    func refrescar(_ f: Foto) {
+        ultimoTitulo = ""
+        actualizar(f)
+    }
+
     func actualizar(_ f: Foto) {
         var partes: [String] = []
         if Preferencias.barra(.cpu) { partes.append("\(Int(f.cpu.total.rounded()))%") }
@@ -81,9 +88,14 @@ final class BarraMenu: NSObject, NSPopoverDelegate {
         }
         let alertas = f.activas.count
         let texto = partes.joined(separator: "  ")
-        let clave = "\(texto)|\(alertas)|\(f.peorNivel?.rawValue ?? -1)"
+        let ahorro = ui.ahorro.activo
+        let clave = "\(texto)|\(alertas)|\(f.peorNivel?.rawValue ?? -1)|\(ahorro)"
         guard clave != ultimoTitulo, let b = item.button else { return }
         ultimoTitulo = clave
+        // Con el modo ahorro activo, el icono es una hoja.
+        let img = NSImage(systemSymbolName: ahorro ? "leaf.fill" : "waveform.path.ecg", accessibilityDescription: "Grigory")
+        img?.isTemplate = true
+        b.image = img
 
         let fuente = NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .medium)
         let titulo = NSMutableAttributedString()
@@ -95,7 +107,7 @@ final class BarraMenu: NSObject, NSPopoverDelegate {
             titulo.append(NSAttributedString(string: " " + texto, attributes: [.font: fuente]))
         }
         b.attributedTitle = titulo
-        b.toolTip = alertas > 0 ? "Telemetría · \(alertas) alerta\(alertas == 1 ? "" : "s")" : "Telemetría"
+        b.toolTip = alertas > 0 ? "Grigory · \(alertas) alerta\(alertas == 1 ? "" : "s")" : "Grigory"
     }
 
     // MARK: - Menu
@@ -103,6 +115,9 @@ final class BarraMenu: NSObject, NSPopoverDelegate {
     private func menu() -> NSMenu {
         let m = NSMenu()
         m.addItem(accion("Abrir panel", #selector(abrirPanel)))
+        let ahorro = accion("Modo ahorro", #selector(alternarAhorro))
+        ahorro.state = ui.ahorro.activo ? .on : .off
+        m.addItem(ahorro)
         m.addItem(.separator())
         let barra = NSMenu()
         for metrica in MetricaBarra.allCases {
@@ -117,8 +132,9 @@ final class BarraMenu: NSObject, NSPopoverDelegate {
         let notif = accion("Notificar alertas críticas", #selector(alternarNotificaciones))
         notif.state = Preferencias.notificaciones ? .on : .off
         m.addItem(notif)
+        m.addItem(accion("Configuración…", #selector(abrirConfiguracion)))
         m.addItem(.separator())
-        m.addItem(NSMenuItem(title: "Salir de Telemetría", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
+        m.addItem(NSMenuItem(title: "Salir de Grigory", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
         return m
     }
 
@@ -129,6 +145,10 @@ final class BarraMenu: NSObject, NSPopoverDelegate {
     }
 
     @objc private func abrirPanel() { alAbrirVentana?(nil) }
+
+    @objc private func alternarAhorro() { ui.ahorro.alternar() }
+
+    @objc private func abrirConfiguracion() { ui.alAbrirConfiguracion?(0) }
 
     @objc private func alternarMetrica(_ s: NSMenuItem) {
         guard let r = s.representedObject as? String, let m = MetricaBarra(rawValue: r) else { return }
@@ -151,7 +171,7 @@ struct Desplegable: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 8) {
                 Image(systemName: "waveform.path.ecg").foregroundStyle(Tema.cian)
-                Text("TELEMETRÍA").font(.system(size: 11, weight: .semibold)).tracking(2).foregroundStyle(Tema.texto)
+                Text("GRIGORY").font(.system(size: 11, weight: .semibold)).tracking(2).foregroundStyle(Tema.texto)
                 Text(ui.equipo.chipCorto).font(Tema.numero(10)).foregroundStyle(Tema.tenue)
                 Spacer()
                 Text("T+ " + Formato.reloj(ui.actividad)).font(Tema.numero(10)).foregroundStyle(Tema.cian)
@@ -169,18 +189,25 @@ struct Desplegable: View {
                             HStack(spacing: 6) {
                                 Circle().fill(Tema.color(a.nivel)).frame(width: 6, height: 6)
                                 Text(a.titulo).font(.system(size: 11)).foregroundStyle(Tema.texto)
-                                Text(a.etiqueta).font(.system(size: 11)).foregroundStyle(Tema.tenue).lineLimit(1)
+                                Text(a.nombreFamilia).font(.system(size: 11)).foregroundStyle(Tema.tenue).lineLimit(1)
                                 Spacer(minLength: 0)
-                                Text(valorAlerta(a).0 + valorAlerta(a).1).font(Tema.numero(10.5)).foregroundStyle(Tema.color(a.nivel))
+                                if let v = a.veredicto {
+                                    Text(v.corto).font(Tema.numero(10.5)).foregroundStyle(v.tono.color)
+                                } else {
+                                    Text(valorAlerta(a).0 + valorAlerta(a).1).font(Tema.numero(10.5)).foregroundStyle(Tema.color(a.nivel))
+                                }
                             }
                             .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
+                        .help([a.veredicto?.texto, a.carpetaCorta.map { "Carpeta: \($0)" }, a.sobreCopias]
+                            .compactMap { $0 }.joined(separator: "\n"))
                     }
                 }
                 .padding(10)
                 .background(Tema.panel, in: RoundedRectangle(cornerRadius: 8))
             }
+            FilaAhorro(ahorro: ui.ahorro, enBateria: f.enBateria == true || f.bateria?.estado == .descargando)
             HStack {
                 Button("Abrir panel") { abrir(nil) }.keyboardShortcut(.defaultAction)
                 Spacer()
@@ -215,5 +242,29 @@ struct Desplegable: View {
             .buttonStyle(.plain)
             .resaltable()
         }
+    }
+}
+
+/// Interruptor del modo ahorro en el desplegable.
+struct FilaAhorro: View {
+    @ObservedObject var ahorro: Ahorro
+    let enBateria: Bool
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: ahorro.activo ? "leaf.fill" : "leaf")
+                .foregroundStyle(ahorro.activo ? Tema.verde : Tema.tenue)
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Modo ahorro").font(.system(size: 12, weight: .medium)).foregroundStyle(Tema.texto)
+                Text(ahorro.activo ? "bajo consumo y brillo reducido" : enBateria ? "con batería: ideal para una llamada" : "bajo consumo y brillo reducido")
+                    .font(.system(size: 10.5)).foregroundStyle(Tema.tenue)
+            }
+            Spacer()
+            Toggle("", isOn: Binding(get: { ahorro.activo }, set: { _ in ahorro.alternar() }))
+                .toggleStyle(.switch).labelsHidden().controlSize(.small)
+        }
+        .padding(10)
+        .background(Tema.panel, in: RoundedRectangle(cornerRadius: 8))
+        .help("Activa el modo de bajo consumo de macOS (pide Touch ID), baja el brillo y hace que Grigory muestree más lento. Se configura en Configuración › Modo ahorro.")
     }
 }

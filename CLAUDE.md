@@ -1,12 +1,14 @@
-# Telemetría
+# Grigory
 
-Repositorio `mac-monitor`. Desde la versión 2 es una app nativa de macOS
-(AppKit + SwiftUI): icono con cifras en la barra de menú, desplegable con el
-resumen y ventana con el detalle de cada módulo. Sin servidor, sin sudo y sin
-dependencias. Ver `README.md` para el uso. La versión 1 (servidor Python y
-panel web) está en la etiqueta `v1-python`.
+App nativa de macOS (AppKit + SwiftUI) para vigilar el equipo: icono con
+cifras en la barra de menú, desplegable con el resumen y ventana con el
+detalle de cada módulo, más un modo ahorro y una ventana de configuración.
+Sin servidor, sin sudo y sin dependencias. Ver `README.md` para el uso.
+Hasta la v1 era *mac-monitor* (servidor Python y panel web, etiqueta
+`v1-python`); la v2 se llamó Telemetría (`local.telemetria`), y la app migra
+sus preferencias al arrancar.
 
-> **Repositorio público**: https://github.com/juanlumanmx29/mac-monitor.
+> **Repositorio público**: https://github.com/juanlumanmx29/grigory.
 > Nada de lo que se escriba aquí puede contener rutas personales, nombres de
 > usuario, direcciones IP, seriales ni datos de un equipo concreto (tampoco en
 > ejemplos ni capturas).
@@ -14,7 +16,7 @@ panel web) está en la etiqueta `v1-python`.
 ## Arquitectura
 
 ```
-Sources/Telemetria/
+Sources/Grigory/
   main.swift            arranque, instancia única, modos --volcar / --medir / --icono / --capturas / --pagina / --fondo
   Motor.swift           qué se lee y cada cuánto (visible 1 s, fondo 5 s, Demanda por página); Foto, Historial, Preferencias
   Sistema.swift         sysctl, procesos auxiliares, IOKit, reloj monótono
@@ -27,6 +29,9 @@ Sources/Telemetria/
   Vigilancia.swift      reglas: olvidado, desbocado, zombi, detenido, reposo
   Ventanas.swift        app responsable de un proceso (traer su ventana al frente), anfitrion de SwiftUI
   Conocidos.swift       que es cada proceso de macOS conocido y si sirve terminarlo
+  RegistroEnergia.swift ¿qué gastó la batería?: último tramo sin cargador desde el powerlog de macOS
+  Ahorro.swift          modo ahorro: bajo consumo de macOS (Touch ID), brillo, muestreo lento
+  Configuracion.swift   ventana de configuración (⌘,) y Ajustes observables
   Modelo.swift          Modulo, Interfaz (estado observable y acciones), Resumen de cada módulo
   Tema.swift            paleta dinámica (oscuro/claro), Rotulo, Insignia
   Componentes.swift     Panel, FilaDato, Cifra, Anillo, barras, Grafico, Celda, Helice, Reticula
@@ -118,11 +123,48 @@ Sources/Telemetria/
   lo pide (`Demanda`): cada 30 s con Energía abierta, cada 2 min en el
   resumen. Su cabecera trae el total de hilos; si no corre, `top -l 1` cada
   30 s con la página de CPU.
+- **«¿Se está usando?»** (`Motor.usoDeRed`): para cada alerta de olvidado o
+  desbocado se recorren solo los sockets de su familia y de sus copias (corre
+  también en fondo, cuesta poco). Una conexión cuenta como uso si su puerto
+  local es uno de los de escucha del grupo: `lsof -sTCP:ESTABLISHED` mezcla
+  las salientes (a una base de datos, a una API) y engaña. Se recuerda la
+  última vez que se vio uso (conexiones o CPU ≥ 2 %): una base de datos puede
+  estar sin conexiones ahora y usarse cada rato. En PostgreSQL cuentan
+  además los procesos hijo de cliente («postgres: usuario base …»): así entran
+  las conexiones por socket Unix, que no pasan por TCP (comprobado con un
+  `psql` local: la familia pasa de 6 a 7 y el veredicto a «en uso»).
+- **Los olvidados se agrupan por familia**: la raíz es el olvidado más alto
+  de la cadena; CPU y memoria son las de todos. PostgreSQL eran 6 alertas.
+- **Carpeta de trabajo** con `PROC_PIDVNODEPATHINFO` (solo procesos propios)
+  y **copias** por argumentos idénticos: así se vio un servidor de proyecto
+  lanzado tres veces, una de ellas huérfana.
+- **Los servicios XPC** (`/XPCServices/`, `.xpc/`) los gestiona launchd por
+  cuenta de quien los usa aunque no salgan en `launchctl list`: no son
+  olvidados (SourceKitService aparecía al compilar).
 - **«¿Qué es esto?»** (`Conocidos.swift`): catálogo de procesos genéricos de
   macOS con qué hacen y si terminarlos sirve (`relanza`) o es peligroso
-  (WindowServer cierra la sesión, kernel_task no se puede). Lo que no está
-  en el catálogo se describe por su ruta de sistema o por la app de la que
-  depende. Con riesgo `peligroso` no se ofrece Terminar.
+  (WindowServer cierra la sesión, kernel_task no se puede), y de servicios de
+  desarrollo con cómo detenerlos bien (`pg_ctl stop`, `redis-cli shutdown`…).
+  Los trabajadores internos de PostgreSQL se reconocen por su título
+  («postgres: checkpointer») y son `peligroso`. Lo que no está en el catálogo
+  se describe por su ruta de sistema o por la app de la que depende. Con
+  riesgo `peligroso` no se ofrece Terminar.
+- **El registro de energía de macOS** (`/private/var/db/powerlog/…/
+  CurrentPowerlog.PLSQL`) es legible sin privilegios. Está en modo WAL: se
+  copia (con `-wal` y `-shm`) a una carpeta temporal y se abre en solo
+  lectura; abrirlo en sitio exigiría escribir su `-shm`, que es de root.
+  `PLBatteryAgent_EventBackward_Battery` da nivel, amperaje, voltaje y
+  cargador; `PLCoalitionAgent_EventInterval_CoalitionInterval`, energía, CPU
+  y GPU por app (las unidades de `energy` son internas: se usan proporciones).
+  Durante el reposo no hay muestras: el tiempo despierta suma solo saltos de
+  menos de 10 min. La cámara se detecta por la CPU de `cameracaptured`.
+- **Modo ahorro**: en este macOS la clave de `pmset` es `powermode` (0
+  automático, 1 bajo consumo), no `lowpowermode`. Activarlo exige root: se
+  usa `NSAppleScript` con «with administrator privileges» (macOS pide Touch
+  ID o contraseña) en el hilo principal. Antes se guarda el `powermode` de
+  batería y de cargador (`pmset -g custom`) y al salir se restaura tal cual.
+  El brillo va por DisplayServices (privado, `dlsym`) sin permisos; al salir
+  se devuelve solo si nadie lo movió (margen de 0,04).
 - **La app responsable de un proceso** sale de
   `responsibility_get_pid_responsible_for_pid` (privada, `dlsym`): un
   `WebContent` lleva a Safari y un `node` de la terminal integrada a VS Code.
@@ -174,9 +216,10 @@ No basta con que compile:
 
 ```bash
 ./construir.sh
-F="build.noindex/Telemetría.app/Contents/MacOS/Telemetria"
+F="build.noindex/Grigory.app/Contents/MacOS/Grigory"
 
-# Datos reales de cada fuente; con TELEMETRIA_PERFIL=1, ms por tramo del ciclo
+# Datos reales de cada fuente, incluido el último tramo con batería;
+# con GRIGORY_PERFIL=1, ms por tramo del ciclo
 $F --volcar
 
 # Gasto del motor sin interfaz, en cada régimen

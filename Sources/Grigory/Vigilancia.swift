@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 
 // Vigilancia de procesos: los olvidados, los fantasmas y los que no dejan
@@ -69,14 +70,36 @@ struct Alerta: Identifiable {
     let ppid: Int32
     let padre: String?
     let pcpu: Double
-    let rss: UInt64?
+    var rss: UInt64?
     let cpuSostenida: Double?
     let ventana: Double?
     let propio: Bool
     var zombis: [Int32] = []
     var valor: Double?
+    /// Olvidados: el proceso raiz primero y despues sus descendientes.
+    var familia: [Int32] = []
+    /// Carpeta de trabajo: dice de que proyecto es.
+    var cwd: String?
+    /// Otros procesos con exactamente el mismo comando.
+    var copias: [Int32] = []
+    /// Uso de red de la familia (solo procesos propios; nil si no se pudo leer).
+    var escucha: [Int] = []
+    var conexiones: Int?
+    var usoCopias: [Copia] = []
+    /// Ultima vez (epoca) que se vio uso: conexiones entrantes o CPU.
+    var ultimoUso: Double?
+    /// Desde cuando (epoca) la app vigila esta alerta.
+    var vigiladoDesde: Double?
 
     var comando: String { "kill \(pid)" }
+}
+
+/// Otra copia del mismo comando y su uso de red.
+struct Copia {
+    let pid: Int32
+    let escucha: [Int]
+    let conexiones: Int
+    let tty: String
 }
 
 struct Cuentas {
@@ -126,6 +149,7 @@ final class Vigilante {
         var vigentes: [String: (inicio: Double, desde: Double)] = [:]
         var zombis: [Int32: [Int32]] = [:]
         var alertas: [Alerta] = []
+        var cpuOlvidados: [Int32: Double?] = [:]
         let fotoOlv = foto(Reglas.ventanaOlvidado, ahora)
         let fotoDes = foto(Reglas.ventanaDesbocado, ahora)
 
@@ -160,17 +184,7 @@ final class Vigilante {
                dueno(pid, tabla, gestionados, &memo) == nil {
                 olvidado = true
                 e.huerfanos.insert(pid)
-                let cpu = sostenida(p, Reglas.ventanaOlvidado, fotoOlv, ahora)
-                let motivo = "Ni él ni sus procesos padre tienen ventana de terminal, y no depende de ninguna "
-                    + "app ni de launchd: lo más probable es que se cerró la ventana que lo lanzó y siguió corriendo."
-                if let cpu, cpu >= Reglas.umbralOlvidado {
-                    alertas.append(alerta(.olvidado, .critico, "Olvidado y consumiendo CPU", p, tabla,
-                                          motivo + " Mantiene \(Int(cpu.rounded()))% de un núcleo.",
-                                          cpu: cpu, ventana: Reglas.ventanaOlvidado))
-                } else {
-                    alertas.append(alerta(.olvidado, .aviso, "Proceso olvidado", p, tabla, motivo,
-                                          cpu: cpu, ventana: Reglas.ventanaOlvidado))
-                }
+                cpuOlvidados[pid] = sostenida(p, Reglas.ventanaOlvidado, fotoOlv, ahora)
             }
 
             if !olvidado, p.nombre != "kernel_task",
@@ -182,6 +196,53 @@ final class Vigilante {
             }
         }
         e.cuentas.huerfanos = e.huerfanos.count
+
+        // Una alerta por familia: un servidor como PostgreSQL son media docena
+        // de procesos olvidados a la vez. La raiz es el olvidado mas alto de la
+        // cadena; la CPU y la memoria son las de toda la familia.
+        var familias: [Int32: [Int32]] = [:]
+        for pid in e.huerfanos {
+            var raiz = pid
+            var pasos = 0
+            while let padre = tabla[raiz]?.ppid, e.huerfanos.contains(padre), pasos < 64 {
+                raiz = padre
+                pasos += 1
+            }
+            familias[raiz, default: []].append(pid)
+        }
+        for (raiz, miembros) in familias {
+            guard let p = tabla[raiz] else { continue }
+            let orden = [raiz] + miembros.filter { $0 != raiz }.sorted()
+            let cpus = orden.compactMap { cpuOlvidados[$0] ?? nil }
+            let cpu: Double? = cpus.isEmpty ? nil : cpus.reduce(0, +)
+            var motivo = "Ni él ni sus procesos padre tienen ventana de terminal, y no depende de ninguna "
+                + "app ni de launchd: lo más probable es que se cerró la ventana o la sesión que lo lanzó y siguió corriendo."
+            if orden.count > 1 { motivo += " Lo acompañan \(orden.count - 1) procesos hijos." }
+            var a: Alerta
+            if let cpu, cpu >= Reglas.umbralOlvidado {
+                a = alerta(.olvidado, .critico, "Olvidado y consumiendo CPU", p, tabla,
+                           motivo + " Entre todos mantienen \(Int(cpu.rounded()))% de un núcleo.",
+                           cpu: cpu, ventana: Reglas.ventanaOlvidado)
+            } else {
+                a = alerta(.olvidado, .aviso, "Proceso olvidado", p, tabla, motivo,
+                           cpu: cpu, ventana: Reglas.ventanaOlvidado)
+            }
+            a.familia = orden
+            a.rss = orden.compactMap { tabla[$0]?.rss }.reduce(0, +)
+            alertas.append(a)
+        }
+
+        // Carpeta de trabajo y copias del mismo comando: responden «¿de qué
+        // proyecto es?» y «¿hay otro igual?».
+        for i in alertas.indices where alertas[i].regla == .olvidado || alertas[i].regla == .desbocado {
+            let a = alertas[i]
+            if a.propio { alertas[i].cwd = carpeta(a.pid) }
+            guard a.args.contains(" ") else { continue }
+            let propios = Set(a.familia + [a.pid])
+            alertas[i].copias = Array(tabla.values
+                .filter { $0.args == a.args && !propios.contains($0.pid) && $0.estado != "Z" }
+                .map(\.pid).sorted().prefix(8))
+        }
 
         for (ppid, hijos) in zombis {
             guard let padre = tabla[ppid] else { continue }
@@ -209,6 +270,15 @@ final class Vigilante {
         vistos = vigentes
         e.alertas = alertas.sorted { ($0.nivel, -($0.cpuSostenida ?? 0)) < ($1.nivel, -($1.cpuSostenida ?? 0)) }
         return e
+    }
+
+    /// Carpeta de trabajo de un proceso propio.
+    private func carpeta(_ pid: Int32) -> String? {
+        var vpi = proc_vnodepathinfo()
+        let tam = Int32(MemoryLayout<proc_vnodepathinfo>.size)
+        guard proc_pidinfo(pid, PROC_PIDVNODEPATHINFO, 0, &vpi, tam) == tam else { return nil }
+        let s = withUnsafeBytes(of: vpi.pvi_cdir.vip_path) { String(decoding: $0.prefix(while: { $0 != 0 }), as: UTF8.self) }
+        return s.isEmpty || s == "/" ? nil : s
     }
 
     // MARK: - CPU sostenida
@@ -257,6 +327,9 @@ final class Vigilante {
             if p.conTerminal { resultado = "terminal"; break }
             if gestionados.contains(actual) { resultado = "launchd"; break }
             if esApp(p.ruta) { resultado = "app"; break }
+            // Los servicios XPC los arranca y para launchd por cuenta de quien
+            // los usa, aunque no aparezcan en `launchctl list`.
+            if p.ruta.contains("/XPCServices/") || p.ruta.contains(".xpc/") { resultado = "xpc"; break }
             if Reglas.rutasSistema.contains(where: { p.ruta.hasPrefix($0) }) { resultado = "sistema"; break }
             actual = p.ppid
         }

@@ -80,6 +80,7 @@ enum Modulo: String, CaseIterable, Identifiable, Hashable {
         case .memoria, .procesos: return Demanda(procesos: true, puertos: true)
         case .energia: return Demanda(procesos: true, energia: true)
         case .puertos, .vigilancia: return Demanda(procesos: true, puertos: true)
+        case .bateria: return Demanda(registro: true)
         default: return Demanda()
         }
     }
@@ -109,6 +110,9 @@ final class Interfaz: ObservableObject {
     private var tsTabla = -1e9
 
     let equipo = Equipo.actual
+    let ahorro = Ahorro()
+    let ajustes = Ajustes()
+    var alAbrirConfiguracion: ((Int) -> Void)?
     var alCambiarDemanda: ((Demanda) -> Void)?
     var alPausar: ((Bool) -> Void)?
     var alAbrirVentana: ((Modulo?) -> Void)?
@@ -192,19 +196,19 @@ final class Interfaz: ObservableObject {
 
     /// Que es el proceso y que pasa si se termina. Para la propia app no hay
     /// "auxiliar de": solo se usa la app responsable si es otro proceso.
-    func descripcion(pid: Int32, nombre: String, ruta: String) -> Descripcion? {
+    func descripcion(pid: Int32, nombre: String, ruta: String, args: String) -> Descripcion? {
         let a = app(de: pid)
-        return Conocidos.describir(nombre: nombre, ruta: ruta, app: a?.processIdentifier == pid ? nil : a)
+        return Conocidos.describir(nombre: nombre, ruta: ruta, args: args, app: a?.processIdentifier == pid ? nil : a)
     }
 
     func descripcion(_ p: Proceso) -> Descripcion? {
-        descripcion(pid: p.pid, nombre: p.nombre, ruta: p.ruta)
+        descripcion(pid: p.pid, nombre: p.nombre, ruta: p.ruta, args: p.args)
     }
 
     func descripcion(_ a: Alerta) -> Descripcion? {
         if let p = foto.tabla[a.pid] { return descripcion(p) }
         let ruta = a.args.split(separator: " ").first.map(String.init) ?? ""
-        return descripcion(pid: a.pid, nombre: a.nombre, ruta: ruta)
+        return descripcion(pid: a.pid, nombre: a.nombre, ruta: ruta, args: a.args)
     }
 
     func irAVentana(_ pid: Int32) {
@@ -438,5 +442,72 @@ extension Interfaz {
             r.escala = .auto(minimo: 4)
         }
         return r
+    }
+}
+
+// MARK: - ¿Se esta usando?
+
+struct Veredicto {
+    let corto: String
+    let texto: String
+    let tono: Tono
+}
+
+extension Alerta {
+    /// «¿Se está usando?» para olvidados y desbocados: conexiones entrantes,
+    /// CPU sostenida y la ultima vez que se vio uso.
+    var veredicto: Veredicto? {
+        guard regla == .olvidado || regla == .desbocado else { return nil }
+        let puertos = escucha.map { ":\($0)" }.joined(separator: " ")
+        if let c = conexiones, c > 0 {
+            return Veredicto(corto: "en uso",
+                             texto: "En uso: \(c) conexión\(c == 1 ? "" : "es") entrante\(c == 1 ? "" : "s") en \(puertos). Antes de terminarlo, conviene saber quién lo usa.",
+                             tono: .ok)
+        }
+        if let cpu = cpuSostenida, cpu >= 5 {
+            return Veredicto(corto: "\(Int(cpu.rounded()))% CPU",
+                             texto: "Trabajando: mantiene \(Int(cpu.rounded())) % de un núcleo\(escucha.isEmpty ? "" : ", aunque nadie está conectado a \(puertos)").",
+                             tono: nivel == .critico ? .critico : .aviso)
+        }
+        guard conexiones != nil || cpuSostenida != nil else { return nil }
+        let ahora = Date().timeIntervalSince1970
+        var cuando = ""
+        if let u = ultimoUso, ahora - u > 10 {
+            cuando = "; el último uso fue hace \(Formato.lapso(ahora - u))"
+        } else if ultimoUso == nil, let d = vigiladoDesde, ahora - d > 60 {
+            cuando = "; sin uso desde que la app lo vigila (\(Formato.lapso(ahora - d)))"
+        }
+        let que = escucha.isEmpty ? "no escucha en ningún puerto y casi no usa CPU"
+                                  : "escucha en \(puertos) pero nadie está conectado, y casi no usa CPU"
+        return Veredicto(corto: "inactivo", texto: "Inactivo ahora: \(que)\(cuando).", tono: .aviso)
+    }
+
+    /// Otras copias del mismo comando, con cual se esta usando.
+    var sobreCopias: String? {
+        if usoCopias.isEmpty {
+            return copias.isEmpty ? nil : "Hay \(copias.count) proceso\(copias.count == 1 ? "" : "s") más con el mismo comando."
+        }
+        let lista = usoCopias.map { c in
+            "pid \(c.pid)" + (c.escucha.isEmpty ? "" : " en " + c.escucha.map { ":\($0)" }.joined(separator: " "))
+                + (c.tty != "??" ? " (terminal \(c.tty))" : "") + (c.conexiones > 0 ? ", en uso" : "")
+        }
+        let n = usoCopias.count
+        var t = "Hay \(n) copia\(n == 1 ? "" : "s") más del mismo comando: \(lista.joined(separator: "; "))."
+        if veredicto?.corto == "inactivo" {
+            t += usoCopias.contains { $0.conexiones > 0 }
+                ? " Esta probablemente sobra: la que se usa es la otra."
+                : " Ninguna tiene conexiones ahora: quizá sobran varias."
+        }
+        return t
+    }
+
+    /// Carpeta de trabajo con ~ en lugar de la carpeta personal.
+    var carpetaCorta: String? {
+        cwd.map { $0.replacingOccurrences(of: NSHomeDirectory(), with: "~") }
+    }
+
+    /// Nombre para listas: el comando y, si es una familia, cuantos procesos.
+    var nombreFamilia: String {
+        familia.count > 1 ? "\(etiqueta) · \(familia.count) procesos" : etiqueta
     }
 }

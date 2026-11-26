@@ -35,7 +35,7 @@ if let i = argumentos.firstIndex(of: "--medir-ui"), i + 1 < argumentos.count, le
     exit(0)
 }
 
-private let avisoMostrar = Notification.Name("local.telemetria.mostrar")
+private let avisoMostrar = Notification.Name("local.grigory.mostrar")
 
 final class Delegado: NSObject, NSApplicationDelegate {
     private let motor = Motor()
@@ -44,6 +44,7 @@ final class Delegado: NSObject, NSApplicationDelegate {
     private var ventana: ControladorVentana!
     private var barra: BarraMenu!
     private var menus: Menus!
+    private var configuracion: ControladorConfiguracion!
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Una sola instancia: si ya hay otra, se le pide que muestre su ventana.
@@ -58,11 +59,24 @@ final class Delegado: NSObject, NSApplicationDelegate {
             self?.ventana.mostrar(nil)
         }
 
+        migrarPreferencias()
         Menus.aplicarApariencia()
         ventana = ControladorVentana(ui: ui)
         barra = BarraMenu(ui: ui)
+        configuracion = ControladorConfiguracion(ajustes: ui.ajustes, ahorro: ui.ahorro)
         menus = Menus(ui: ui) { [weak self] m in self?.ventana.mostrar(m) }
         NSApp.mainMenu = menus.construir()
+        ui.alAbrirConfiguracion = { [weak self] p in self?.configuracion.mostrar(pestana: p) }
+        ui.ahorro.alCambiar = { [weak self] activo in
+            guard let self else { return }
+            self.motor.ponerAhorro(activo)
+            self.barra.refrescar(self.ui.foto)
+        }
+        ui.ajustes.alCambiarBarra = { [weak self] in
+            guard let self else { return }
+            self.barra.refrescar(self.ui.foto)
+        }
+        motor.ponerAhorro(ui.ahorro.activo)
 
         ventana.alCambiarVisibilidad = { [weak self] in self?.visibilidad() }
         barra.alCambiarVisibilidad = { [weak self] in self?.visibilidad() }
@@ -103,6 +117,19 @@ final class Delegado: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
+}
+
+/// Preferencias de cuando la app se llamaba Telemetría (local.telemetria):
+/// alertas silenciadas, tema, barra de menú, modo ahorro y caché del SMC.
+private func migrarPreferencias() {
+    let d = UserDefaults.standard
+    guard !d.bool(forKey: "migradoDeTelemetria") else { return }
+    d.set(true, forKey: "migradoDeTelemetria")
+    guard let viejo = d.persistentDomain(forName: "local.telemetria") else { return }
+    let prefijos = ["silenciadas", "notificaciones", "apariencia", "barra.", "ahorro.", "smc.claves."]
+    for (k, v) in viejo where prefijos.contains(where: { k.hasPrefix($0) }) && d.object(forKey: k) == nil {
+        d.set(v, forKey: k)
+    }
 }
 
 let app = NSApplication.shared

@@ -7,7 +7,7 @@ import AppKit
 enum Logo {
     static func generar(en carpeta: String) -> Bool {
         let base = URL(fileURLWithPath: carpeta, isDirectory: true)
-        let set = base.appendingPathComponent("Telemetria.iconset", isDirectory: true)
+        let set = base.appendingPathComponent("Grigory.iconset", isDirectory: true)
         try? FileManager.default.createDirectory(at: set, withIntermediateDirectories: true)
         let tamanos: [(String, Int)] = [
             ("16x16", 16), ("16x16@2x", 32), ("32x32", 32), ("32x32@2x", 64),

@@ -2,12 +2,12 @@
 import PackageDescription
 
 let package = Package(
-    name: "Telemetria",
+    name: "Grigory",
     platforms: [.macOS(.v14)],
     targets: [
         .executableTarget(
-            name: "Telemetria",
-            path: "Sources/Telemetria",
+            name: "Grigory",
+            path: "Sources/Grigory",
             linkerSettings: [.linkedFramework("IOKit")]
         )
     ]

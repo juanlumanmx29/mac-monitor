@@ -3,21 +3,21 @@
 <plist version="1.0">
 <dict>
 	<key>CFBundleIdentifier</key>
-	<string>local.telemetria</string>
+	<string>local.grigory</string>
 	<key>CFBundleName</key>
-	<string>Telemetría</string>
+	<string>Grigory</string>
 	<key>CFBundleDisplayName</key>
-	<string>Telemetría</string>
+	<string>Grigory</string>
 	<key>CFBundleIconFile</key>
-	<string>Telemetria</string>
+	<string>Grigory</string>
 	<key>CFBundleExecutable</key>
-	<string>Telemetria</string>
+	<string>Grigory</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>2.0.0</string>
+	<string>2.1.0</string>
 	<key>CFBundleVersion</key>
-	<string>2</string>
+	<string>3</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>14.0</string>
 	<key>LSUIElement</key>

@@ -35,7 +35,7 @@ final class ControladorVentana: NSObject, NSWindowDelegate {
         let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1200, height: 800),
                          styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
                          backing: .buffered, defer: false)
-        w.title = "Telemetría"
+        w.title = "Grigory"
         w.titlebarAppearsTransparent = true
         w.titleVisibility = .hidden
         w.minSize = NSSize(width: 940, height: 620)
@@ -83,14 +83,17 @@ final class Menus: NSObject {
         let principal = NSMenu()
 
         let app = NSMenu()
-        app.addItem(withTitle: "Acerca de Telemetría", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
+        app.addItem(withTitle: "Acerca de Grigory", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
         app.addItem(.separator())
-        app.addItem(withTitle: "Ocultar Telemetría", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
+        app.addItem(item("Configuración…", #selector(abrirConfiguracion(_:)), ",", nil))
+        app.addItem(item("Modo ahorro", #selector(alternarAhorro(_:)), "", nil))
+        app.addItem(.separator())
+        app.addItem(withTitle: "Ocultar Grigory", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
         let otras = app.addItem(withTitle: "Ocultar otras", action: #selector(NSApplication.hideOtherApplications(_:)), keyEquivalent: "h")
         otras.keyEquivalentModifierMask = [.command, .option]
         app.addItem(.separator())
-        app.addItem(withTitle: "Salir de Telemetría", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
-        principal.addItem(submenu(app, "Telemetría"))
+        app.addItem(withTitle: "Salir de Grigory", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        principal.addItem(submenu(app, "Grigory"))
 
         let edicion = NSMenu(title: "Edición")
         edicion.addItem(withTitle: "Cortar", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
@@ -159,6 +162,10 @@ final class Menus: NSObject {
 
     @objc private func pausar(_ s: NSMenuItem) { ui.pausado.toggle() }
 
+    @objc private func abrirConfiguracion(_ s: NSMenuItem) { ui.alAbrirConfiguracion?(0) }
+
+    @objc private func alternarAhorro(_ s: NSMenuItem) { ui.ahorro.alternar() }
+
     @objc private func ponerApariencia(_ s: NSMenuItem) {
         Preferencias.apariencia = s.tag
         Menus.aplicarApariencia()
@@ -177,6 +184,9 @@ extension Menus: NSMenuItemValidation {
     func validateMenuItem(_ item: NSMenuItem) -> Bool {
         if item.action == #selector(ponerApariencia(_:)) {
             item.state = item.tag == Preferencias.apariencia ? .on : .off
+        }
+        if item.action == #selector(alternarAhorro(_:)) {
+            item.state = ui.ahorro.activo ? .on : .off
         }
         if item.action == #selector(irA(_:)) {
             item.state = item.representedObject as? String == ui.seleccion?.rawValue ? .on : .off

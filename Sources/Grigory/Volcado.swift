@@ -1,10 +1,10 @@
 import Foundation
 
-// `Telemetria --volcar`: muestrea unos segundos sin abrir ventanas e imprime
+// `Grigory --volcar`: muestrea unos segundos sin abrir ventanas e imprime
 // todo lo leido. Sustituye a `python3 smc.py`, `python3 vigilancia.py` y al
 // curl contra /api/metrics de la version anterior.
 //
-// `Telemetria --medir <segundos> [fondo|visible]`: mide lo que gasta el motor
+// `Grigory --medir <segundos> [fondo|visible]`: mide lo que gasta el motor
 // en ese regimen (CPU propia y de procesos auxiliares).
 
 enum Volcado {
@@ -50,6 +50,17 @@ enum Volcado {
                   + " · salud \(Formato.pct(b.salud)) · temp \(Formato.temp(b.temperatura)) · adaptador \(Formato.vatios(b.adaptador, 0))"
                   + " · carga del sistema \(Formato.vatios(b.cargaSistema, 2)) · quedan \(b.minutosRestantes.map { "\($0) min" } ?? "—")")
         }
+        if let t = RegistroEnergia.ultimoTramo() {
+            let h = DateFormatter()
+            h.dateFormat = "dd/MM HH:mm"
+            print("[tramo con batería] \(h.string(from: t.inicio)) → \(t.enCurso ? "ahora" : h.string(from: t.fin)) (\(Formato.lapso(t.duracion)))"
+                  + " · \(Int(t.nivelInicio))% → \(Int(t.nivelFin))% · media \(Formato.vatios(t.vatiosMedios)) · cámara \(Int(t.minutosCamara)) min · \(t.curva.count) muestras")
+            for a in t.apps.prefix(8) {
+                print("         \(a.nombre.padding(toLength: 22, withPad: " ", startingAt: 0)) \(Formato.decimal(a.pctEnergia, 1).padding(toLength: 5, withPad: " ", startingAt: 0))% energía · CPU \(Formato.lapso(a.cpu)) · GPU \(Formato.decimal(a.pctGPU, 1))%")
+            }
+        } else {
+            print("[tramo con batería] sin registro legible")
+        }
         print("[ventiladores] " + (f.ventiladores.isEmpty ? "ninguno" : f.ventiladores.map {
             "#\($0.id) \($0.rpm.map { "\(Int($0))" } ?? "—") rpm (\(Int($0.min))–\(Int($0.max)))" }.joined(separator: " · ")))
         print("[térmico] \(f.fuentes.sensores) sensores")
@@ -81,8 +92,14 @@ enum Volcado {
         for a in v.alertas {
             print("         [\(a.nivel.nombre)] \(a.titulo.padding(toLength: 28, withPad: " ", startingAt: 0)) pid \(String(a.pid).padding(toLength: 6, withPad: " ", startingAt: 0)) \(a.etiqueta.prefix(34)) \(a.cpuSostenida.map { Formato.pct($0) } ?? "—")")
             print("            padre \(a.padre ?? "—") · vida \(Formato.lapso(a.vida)) · \(a.args.prefix(90))")
+            if a.familia.count > 1 { print("            familia \(a.familia.count) procesos") }
+            if let c = a.cwd { print("            carpeta \(c.replacingOccurrences(of: NSHomeDirectory(), with: "~"))") }
+            print("            escucha \(a.escucha.map { ":\($0)" }.joined(separator: " ")) · conexiones entrantes \(a.conexiones.map(String.init) ?? "—")")
+            for c in a.usoCopias {
+                print("            copia pid \(c.pid) · escucha \(c.escucha.map { ":\($0)" }.joined(separator: " ")) · conexiones \(c.conexiones) · terminal \(c.tty)")
+            }
         }
-        if ProcessInfo.processInfo.environment["TELEMETRIA_PERFIL"] != nil {
+        if ProcessInfo.processInfo.environment["GRIGORY_PERFIL"] != nil {
             print("[perfil] " + motor.perfil.map { "\($0.0) \(Formato.decimal($0.1, 1))" }.joined(separator: " · "))
         }
         print("[app]    ciclo \(Formato.decimal(f.propio.ciclo, 1)) ms · memoria \(Formato.mb(f.propio.memoria))"
